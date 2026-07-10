@@ -13,11 +13,8 @@ const resetButton = document.querySelector("#reset");
 
 let game;
 let inputMode = "value";
-let selectedIndexes = new Set();
-let primaryIndex = null;
-let isDraggingSelection = false;
-let activePointerId = null;
-let multiSelectMode = false;
+let selectedIndexes = new Set([0]);
+let primaryIndex = 0;
 
 bootstrap();
 
@@ -82,66 +79,35 @@ function renderNumberPad() {
 }
 
 function bindEvents() {
-  boardElement.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-
+  // 点击事件 - 支持 Cmd+多选
+  boardElement.addEventListener("click", (event) => {
     const button = event.target.closest("[data-index]");
 
     if (!button) {
       return;
     }
 
-    const isMultiSelect = event.metaKey || event.ctrlKey;
     const index = Number(button.dataset.index);
 
-    isDraggingSelection = true;
-    activePointerId = event.pointerId;
-    multiSelectMode = isMultiSelect;  // 保存多选模式状态
-
-    // 保存初始点击的索引，用于拖拽时的区域选择
-    primaryIndex = index;
-
-    if (isMultiSelect) {
-      // Cmd+点击：添加到现有选择
-      addSelection(index);
+    if (event.metaKey || event.ctrlKey) {
+      // Cmd+点击：添加到现有选择（如果已选中则移除）
+      if (selectedIndexes.has(index)) {
+        selectedIndexes.delete(index);
+      } else {
+        selectedIndexes.add(index);
+      }
+      // Cmd+点击时保持最后一个点击的单元格作为 primaryIndex
+      primaryIndex = index;
     } else {
       // 普通点击：只选中当前单元格
       selectOnly(index);
     }
 
-    // 防止拖拽时选中文本
-    event.preventDefault();
+    updateView();
   });
 
-  boardElement.addEventListener("pointermove", (event) => {
-    if (!isDraggingSelection || event.pointerId !== activePointerId) {
-      return;
-    }
-
-    const element = document.elementFromPoint(event.clientX, event.clientY);
-    const button = element?.closest?.("[data-index]");
-
-    if (!button || !boardElement.contains(button)) {
-      return;
-    }
-
-    const index = Number(button.dataset.index);
-
-    if (multiSelectMode) {
-      // Cmd+拖拽：添加到现有选择
-      addSelection(index);
-    } else {
-      // 普通拖拽：选择矩形区域
-      if (primaryIndex !== null) {
-        selectRange(primaryIndex, index);
-      }
-    }
-  });
-
-  document.addEventListener("pointerup", finishSelectionDrag);
-  document.addEventListener("pointercancel", finishSelectionDrag);
+  // 键盘导航
+  document.addEventListener("keydown", handleKeyboard);
 
   numberPadElement.addEventListener("click", (event) => {
     const button = event.target.closest("[data-value]");
@@ -183,10 +149,12 @@ function bindEvents() {
   });
 
   resetButton.addEventListener("click", () => {
-    game.reset();
-    selectedIndexes = new Set();
-    primaryIndex = null;
-    updateView("Puzzle reset.");
+    if (confirm("确定要重置当前谜题吗？这将清除所有已填入的数字。")) {
+      game.reset();
+      selectedIndexes = new Set([0]);
+      primaryIndex = 0;
+      updateView("Puzzle reset.");
+    }
   });
 }
 

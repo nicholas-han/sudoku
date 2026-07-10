@@ -34,9 +34,11 @@ export class SudokuGame {
       throw new Error(`Invalid cell value: ${value}`);
     }
 
-    // 检查数字是否已经填满9次
+    // 检查数字是否已经填满9次（不阻止输入，由UI处理）
+    // 注意：仍然允许输入，但UI会显示灰色表示已满
     if (value !== "" && this.numberCounts[value] >= 9) {
-      return false;
+      // 更新计数，但不阻止输入
+      this.numberCounts[value]++;
     }
 
     // 保存当前状态到历史
@@ -53,10 +55,9 @@ export class SudokuGame {
     if (value !== "") {
       this.clearNotes(index);
       this.clearConflictingNotes(index); // 清除冲突标记
-      this.updateNumberCounts(); // 更新数字计数
-    } else {
-      this.updateNumberCounts(); // 清除值时也更新计数
     }
+    // 总是需要更新数字计数
+    this.updateNumberCounts();
 
     // 添加到历史
     this.history.push(currentState);
