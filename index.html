@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sudoku</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="game">
+        <header class="topbar">
+          <div>
+            <h1 id="puzzle-title">Sudoku</h1>
+            <p id="puzzle-meta">loading...</p>
+          </div>
+          <div class="progress">
+            <span>Progress</span>
+            <strong id="progress">0/81</strong>
+          </div>
+        </header>
+
+        <div id="board" class="board" aria-label="Sudoku board"></div>
+
+        <p id="status" class="status" aria-live="polite">Loading puzzle.</p>
+      </section>
+
+      <aside class="controls" aria-label="Game controls">
+        <div id="input-mode" class="mode-switch" aria-label="Input mode">
+          <button type="button" data-mode="value" class="active" aria-pressed="true">
+            <span>Answer</span>
+            <kbd>A</kbd>
+          </button>
+          <button type="button" data-mode="edge" aria-pressed="false">
+            <span>Corner</span>
+            <kbd>S</kbd>
+          </button>
+          <button type="button" data-mode="center" aria-pressed="false">
+            <span>Center</span>
+            <kbd>D</kbd>
+          </button>
+        </div>
+
+        <div id="number-pad" class="number-pad"></div>
+
+        <div class="actions">
+          <button id="check" type="button">Check Answer</button>
+          <button id="reset" type="button">Reset</button>
+        </div>
+      </aside>
+    </main>
+
+    <script type="module" src="./src/ui.js"></script>
+  </body>
+</html>
