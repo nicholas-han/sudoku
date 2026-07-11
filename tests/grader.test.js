@@ -5,8 +5,8 @@ import { TECHNIQUES, UNITS, gradePuzzle } from "../src/grader.js";
 import { solve } from "../src/solver.js";
 import { fallbackPuzzle } from "../src/storage.js";
 
-// 公认的困难 17 提示数题（Platinum Blonde），单靠基础技巧解不动
-const HARD_17 =
+// 公认的困难题（Platinum Blonde，21 提示数），单靠基础技巧解不动
+const HARD_PUZZLE =
   "000000012000000003002300400001800005060070800000009000008500000900040500470006000";
 
 describe("registry shape", () => {
@@ -35,10 +35,10 @@ describe("gradePuzzle", () => {
     assert.ok(result.techniquesUsed.length > 0);
   });
 
-  it("grades a hard 17-clue puzzle as expert (techniques stall)", () => {
+  it("grades a hard puzzle as expert (techniques stall)", () => {
     // 前置确认该题确实有解，只是逻辑技巧推不完
-    assert.equal(typeof solve(HARD_17), "string");
-    const result = gradePuzzle(HARD_17);
+    assert.equal(typeof solve(HARD_PUZZLE), "string");
+    const result = gradePuzzle(HARD_PUZZLE);
     assert.equal(result.solved, false);
     assert.equal(result.difficulty, "expert");
   });
@@ -51,7 +51,7 @@ describe("gradePuzzle", () => {
   });
 
   it("difficulty is always a known tier", () => {
-    for (const grid of [fallbackPuzzle.puzzle, HARD_17]) {
+    for (const grid of [fallbackPuzzle.puzzle, HARD_PUZZLE]) {
       assert.ok(DIFFICULTIES.includes(gradePuzzle(grid).difficulty));
     }
   });
