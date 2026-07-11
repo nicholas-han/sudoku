@@ -1,0 +1,13 @@
+{
+  "format": "sudoku-index-v1",
+  "updatedAt": "2026-07-11T00:00:00.000Z",
+  "puzzles": [
+    {
+      "id": "classic-001",
+      "file": "classic-001.json",
+      "title": "Starter Puzzle 001",
+      "difficulty": "easy",
+      "canonical": "000010023000345006060000740200060007500207008600090001079000060300458000410070000"
+    }
+  ]
+}

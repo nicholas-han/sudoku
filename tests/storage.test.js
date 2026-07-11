@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   SUPPORTED_FORMAT,
+  SUPPORTED_INDEX_FORMAT,
+  fallbackIndex,
   fallbackPuzzle,
+  normalizeIndex,
   normalizePuzzle,
   validatePuzzle,
 } from "../src/storage.js";
@@ -77,5 +80,78 @@ describe("normalizePuzzle", () => {
 describe("validatePuzzle", () => {
   it("returns true for a valid puzzle", () => {
     assert.equal(validatePuzzle(normalizePuzzle(fallbackPuzzle)), true);
+  });
+});
+
+describe("provenance fields", () => {
+  it("passes source and createdAt through", () => {
+    const source = { kind: "photo", provider: "ollama", image: "IMG_1.jpg" };
+    const puzzle = normalizePuzzle({
+      ...fallbackPuzzle,
+      source,
+      createdAt: "2026-07-11T00:00:00.000Z",
+    });
+    assert.deepEqual(puzzle.source, source);
+    assert.equal(puzzle.createdAt, "2026-07-11T00:00:00.000Z");
+  });
+
+  it("defaults source and createdAt to null", () => {
+    const puzzle = normalizePuzzle(fallbackPuzzle);
+    assert.equal(puzzle.source, null);
+    assert.equal(puzzle.createdAt, null);
+  });
+
+  it("ignores malformed source and createdAt", () => {
+    const puzzle = normalizePuzzle({ ...fallbackPuzzle, source: "book", createdAt: 42 });
+    assert.equal(puzzle.source, null);
+    assert.equal(puzzle.createdAt, null);
+  });
+});
+
+describe("normalizeIndex", () => {
+  const validIndex = {
+    format: SUPPORTED_INDEX_FORMAT,
+    updatedAt: "2026-07-11T00:00:00.000Z",
+    puzzles: [
+      {
+        id: "classic-001",
+        file: "classic-001.json",
+        title: "Starter Puzzle 001",
+        difficulty: "easy",
+        canonical: "0".repeat(81),
+      },
+    ],
+  };
+
+  it("accepts a valid index", () => {
+    const index = normalizeIndex(validIndex);
+    assert.equal(index.puzzles.length, 1);
+    assert.equal(index.puzzles[0].id, "classic-001");
+    assert.equal(index.puzzles[0].difficulty, "easy");
+  });
+
+  it("defaults missing optional entry fields to null", () => {
+    const index = normalizeIndex({
+      format: SUPPORTED_INDEX_FORMAT,
+      puzzles: [{ id: "a", file: "a.json", title: "A" }],
+    });
+    assert.equal(index.puzzles[0].difficulty, null);
+    assert.equal(index.puzzles[0].canonical, null);
+    assert.equal(index.updatedAt, null);
+  });
+
+  it("rejects wrong format and malformed entries", () => {
+    assert.throws(() => normalizeIndex(null));
+    assert.throws(() => normalizeIndex({ format: "nope", puzzles: [] }), /Unsupported index format/);
+    assert.throws(() => normalizeIndex({ format: SUPPORTED_INDEX_FORMAT, puzzles: "x" }));
+    assert.throws(
+      () => normalizeIndex({ format: SUPPORTED_INDEX_FORMAT, puzzles: [{ id: "a" }] }),
+      /missing id, file, or title/,
+    );
+  });
+
+  it("fallback index is itself valid and points at the fallback puzzle", () => {
+    const index = normalizeIndex(fallbackIndex);
+    assert.equal(index.puzzles[0].id, fallbackPuzzle.id);
   });
 });
