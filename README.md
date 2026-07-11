@@ -1,15 +1,29 @@
 # sudoku
 
-A lightweight browser Sudoku game prototype.
+A lightweight browser Sudoku game prototype. Plain HTML/CSS/JS modules — no framework, no build step, no dependencies.
 
 ## Features
 
 - Answer mode: enter final digits.
 - Corner Marks: track 1-9 candidates around the edge of a cell.
 - Center Marks: track up to 4 digits in the middle of a cell; repeat a digit to remove it.
-- Drag with the left mouse button to select multiple cells, then apply the current input mode to all selected cells.
+- Multi-select: drag with the left mouse button to select a rectangle of cells, or Cmd/Ctrl+click to toggle individual cells in and out of the selection. Digits and marks apply to every selected cell; given clues are skipped.
+- Undo: reverts values, marks, and any peer marks that were auto-removed when a digit was placed.
 - Red conflict hints only show entries that directly clash with given clues.
+- Once all nine copies of a digit are on the board, that digit is grayed out on the number pad and cannot be entered again; erasing one frees it up.
 - Final answer checking happens only after the grid is full.
+
+## Keyboard
+
+| Key | Action |
+| --- | --- |
+| `1`-`9` | Enter digit / toggle mark (per current mode) |
+| `Backspace` / `Delete` / `0` | Erase selected cells |
+| `A` / `S` / `D` | Switch to Answer / Corner / Center mode |
+| `Z` | Undo |
+| Arrow keys | Move the selection (stops at board edges) |
+
+Shortcuts never intercept system combos (Cmd/Ctrl/Alt + key passes through).
 
 ## Run
 
@@ -19,7 +33,17 @@ npm run serve
 
 Then open `http://localhost:8000`.
 
+## Project Layout
+
+- `src/game.js` — game state and rules: values, marks, conflicts, digit counts, undo history. No DOM access.
+- `src/selection.js` — pure helper for rectangular multi-select ranges.
+- `src/storage.js` — puzzle loading, format validation, embedded fallback puzzle.
+- `src/ui.js` — DOM rendering and input handling (mouse, keyboard, drag selection).
+- `tests/` — unit tests for everything above except `ui.js`.
+
 ## Test
+
+Tests run on the built-in Node.js test runner (Node 18+, no dependencies):
 
 ```bash
 npm test

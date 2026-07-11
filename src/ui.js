@@ -1,5 +1,6 @@
 import { SudokuGame } from "./game.js";
 import { loadPuzzle } from "./storage.js";
+import { rangeIndexes } from "./selection.js";
 
 const boardElement = document.querySelector("#board");
 const numberPadElement = document.querySelector("#number-pad");
@@ -15,6 +16,9 @@ let game;
 let inputMode = "value";
 let selectedIndexes = new Set([0]);
 let primaryIndex = 0;
+let isDraggingSelection = false;
+let activePointerId = null;
+let dragStartIndex = null;
 
 bootstrap();
 
@@ -79,8 +83,32 @@ function renderNumberPad() {
 }
 
 function bindEvents() {
-  // 点击事件 - 支持 Cmd+多选
+  // Cmd/Ctrl+点击：切换单元格的选中状态；普通单选在 pointerdown 中处理
   boardElement.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-index]");
+
+    if (!button || !(event.metaKey || event.ctrlKey)) {
+      return;
+    }
+
+    const index = Number(button.dataset.index);
+
+    if (selectedIndexes.has(index)) {
+      selectedIndexes.delete(index);
+    } else {
+      selectedIndexes.add(index);
+    }
+    primaryIndex = index;
+
+    updateView();
+  });
+
+  // 拖拽框选
+  boardElement.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey) {
+      return;
+    }
+
     const button = event.target.closest("[data-index]");
 
     if (!button) {
@@ -89,36 +117,55 @@ function bindEvents() {
 
     const index = Number(button.dataset.index);
 
-    if (event.metaKey || event.ctrlKey) {
-      // Cmd+点击：添加到现有选择（如果已选中则移除）
-      if (selectedIndexes.has(index)) {
-        selectedIndexes.delete(index);
-      } else {
-        selectedIndexes.add(index);
-      }
-      // Cmd+点击时保持最后一个点击的单元格作为 primaryIndex
-      primaryIndex = index;
-    } else {
-      // 普通点击：只选中当前单元格
-      selectOnly(index);
-    }
+    isDraggingSelection = true;
+    activePointerId = event.pointerId;
+    dragStartIndex = index;
+    boardElement.setPointerCapture(event.pointerId);
 
+    selectOnly(index);
     updateView();
   });
+
+  boardElement.addEventListener("pointermove", (event) => {
+    if (!isDraggingSelection || event.pointerId !== activePointerId) {
+      return;
+    }
+
+    // pointer capture 后 event.target 不再更新，需按坐标找当前格
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    const button = element?.closest("[data-index]");
+
+    if (!button) {
+      return;
+    }
+
+    const index = Number(button.dataset.index);
+
+    if (index !== primaryIndex) {
+      selectRange(dragStartIndex, index);
+      updateView();
+    }
+  });
+
+  boardElement.addEventListener("pointerup", finishSelectionDrag);
+  boardElement.addEventListener("pointercancel", finishSelectionDrag);
 
   // 键盘导航
   document.addEventListener("keydown", handleKeyboard);
 
   numberPadElement.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-value]");
+    const button = event.target.closest("button");
 
-    if (!button || getSelectedIndexes().length === 0) {
+    if (!button) {
       return;
     }
 
-    // 检查是否是undo按钮
     if (button.id === "undo") {
       undo();
+      return;
+    }
+
+    if (button.dataset.value === undefined || getSelectedIndexes().length === 0) {
       return;
     }
 
@@ -135,8 +182,6 @@ function bindEvents() {
     inputMode = button.dataset.mode;
     updateView(modeMessage());
   });
-
-  document.addEventListener("keydown", handleKeyboard);
 
   checkButton.addEventListener("click", () => {
     const progress = game.getProgress();
@@ -163,6 +208,7 @@ function enterValue(value) {
   let changed = 0;
   let skipped = 0;
   let limited = 0;
+  let usedUp = 0;
 
   for (const index of targetIndexes) {
     try {
@@ -176,6 +222,11 @@ function enterValue(value) {
         result = game.toggleCenterNote(index, value);
       } else {
         result = { changed: game.setCell(index, value) };
+
+        if (!result.changed && !game.givens[index]) {
+          usedUp += 1;
+          continue;
+        }
       }
 
       if (result.changed) {
@@ -193,7 +244,9 @@ function enterValue(value) {
   const progress = game.getProgress();
   let message = progress.empty === 0 ? completionMessage(progress) : "";
 
-  if (!message && changed === 0 && limited > 0) {
+  if (!message && changed === 0 && usedUp > 0) {
+    message = `All nine ${value}s are already on the board. Erase one to place it elsewhere.`;
+  } else if (!message && changed === 0 && limited > 0) {
     message = "Center marks can hold up to 4 digits. Repeat an existing digit to remove it.";
   } else if (!message && changed === 0 && skipped > 0) {
     message = value === "" || inputMode === "value"
@@ -211,6 +264,11 @@ function handleKeyboard(event) {
     return;
   }
 
+  // 不劫持系统快捷键（Cmd+A、Ctrl+S、Cmd+1 等）
+  if (event.metaKey || event.ctrlKey || event.altKey) {
+    return;
+  }
+
   const shortcutMode = {
     a: "value",
     s: "edge",
@@ -220,6 +278,12 @@ function handleKeyboard(event) {
   if (shortcutMode) {
     inputMode = shortcutMode;
     updateView(modeMessage());
+    event.preventDefault();
+    return;
+  }
+
+  if (event.key === "z" || event.key === "Z") {
+    undo();
     event.preventDefault();
     return;
   }
@@ -240,26 +304,23 @@ function handleKeyboard(event) {
     return;
   }
 
-  if (event.key === "z" || event.key === "Z") {
-    undo();
-    event.preventDefault();
+  const row = Math.floor(primaryIndex / 9);
+  const col = primaryIndex % 9;
+
+  const nextByKey = {
+    ArrowUp: row > 0 ? primaryIndex - 9 : null,
+    ArrowDown: row < 8 ? primaryIndex + 9 : null,
+    ArrowLeft: col > 0 ? primaryIndex - 1 : null,
+    ArrowRight: col < 8 ? primaryIndex + 1 : null,
+  };
+
+  if (!(event.key in nextByKey)) {
     return;
   }
 
-  const movement = {
-    ArrowUp: -9,
-    ArrowDown: 9,
-    ArrowLeft: -1,
-    ArrowRight: 1,
-  }[event.key];
+  const nextIndex = nextByKey[event.key];
 
-  if (movement === undefined) {
-    return;
-  }
-
-  const nextIndex = primaryIndex + movement;
-
-  if (nextIndex >= 0 && nextIndex < 81) {
+  if (nextIndex !== null) {
     selectOnly(nextIndex);
     updateView();
   }
@@ -368,41 +429,8 @@ function selectOnly(index) {
 }
 
 function selectRange(startIndex, endIndex) {
-  // 计算两个单元格之间的所有单元格
-  const startRow = Math.floor(startIndex / 9);
-  const startCol = startIndex % 9;
-  const endRow = Math.floor(endIndex / 9);
-  const endCol = endIndex % 9;
-
-  // 创建新的选择集合
-  const newSelection = new Set();
-
-  // 添加矩形区域内的所有单元格
-  const minRow = Math.min(startRow, endRow);
-  const maxRow = Math.max(startRow, endRow);
-  const minCol = Math.min(startCol, endCol);
-  const maxCol = Math.max(startCol, endCol);
-
-  for (let row = minRow; row <= maxRow; row++) {
-    for (let col = minCol; col <= maxCol; col++) {
-      const index = row * 9 + col;
-      if (index >= 0 && index < 81) {
-        newSelection.add(index);
-      }
-    }
-  }
-
-  selectedIndexes = newSelection;
+  selectedIndexes = rangeIndexes(startIndex, endIndex);
   primaryIndex = endIndex;
-}
-
-function addSelection(index) {
-  if (selectedIndexes.has(index)) {
-    return;
-  }
-
-  selectedIndexes.add(index);
-  primaryIndex = index;
 }
 
 function finishSelectionDrag(event) {
@@ -412,6 +440,7 @@ function finishSelectionDrag(event) {
 
   isDraggingSelection = false;
   activePointerId = null;
+  dragStartIndex = null;
 }
 
 

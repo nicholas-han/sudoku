@@ -1,105 +1,335 @@
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { SudokuGame } from "../src/game.js";
 import { fallbackPuzzle, normalizePuzzle } from "../src/storage.js";
 
+// fallback 谜题速查：
+// - index 0 是给定格 "5"，index 2/3/5/6/7/8/10/11 是空格
+// - "1" 的给定格有 3 个（index 12、44、67）
 const puzzle = normalizePuzzle(fallbackPuzzle);
-const game = new SudokuGame(puzzle);
 
-assert.equal(game.getProgress().filled, 30);
-assert.equal(game.setCell(2, "4"), true);
-assert.equal(game.getCell(2).value, "4");
-assert.equal(game.clearCell(2), true);
-assert.equal(game.getCell(2).value, "");
-assert.equal(game.setCell(0, "9"), false);
-assert.equal(game.getCell(0).value, "5");
+function newGame() {
+  return new SudokuGame(puzzle);
+}
 
-game.setCell(2, "5");
-const conflicts = game.getGivenConflictIndexes();
-assert.equal(conflicts.has(0), true);
-assert.equal(conflicts.has(2), true);
+describe("initial state / reset", () => {
+  it("loads 30 givens", () => {
+    const game = newGame();
+    assert.equal(game.getProgress().filled, 30);
+    assert.equal(game.getProgress().empty, 51);
+    assert.equal(game.getCell(0).given, true);
+    assert.equal(game.getCell(0).value, "5");
+    assert.equal(game.getCell(2).given, false);
+    assert.equal(game.getCell(2).value, "");
+  });
 
-game.setCell(2, "4");
-assert.equal(game.getCell(2).wrong, false);
-assert.equal(game.getProgress().wrong, 0);
+  it("reset clears player entries, notes, and history", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    game.setCell(3, "");
+    game.toggleEdgeNote(3, "1");
+    game.toggleCenterNote(5, "2");
+    game.reset();
 
-game.setCell(2, "");
-game.toggleEdgeNote(2, "1");
-game.toggleEdgeNote(2, "5");
-assert.deepEqual(game.getCell(2).edgeNotes, ["1", "5"]);
-game.toggleEdgeNote(2, "1");
-assert.deepEqual(game.getCell(2).edgeNotes, ["5"]);
-
-game.toggleCenterNote(2, "1");
-game.toggleCenterNote(2, "2");
-game.toggleCenterNote(2, "3");
-game.toggleCenterNote(2, "4");
-assert.deepEqual(game.getCell(2).centerNotes, ["1", "2", "3", "4"]);
-assert.deepEqual(game.toggleCenterNote(2, "5"), {
-  changed: false,
-  reason: "center-note-limit",
+    assert.equal(game.getCell(2).value, "");
+    assert.deepEqual(game.getCell(3).edgeNotes, []);
+    assert.deepEqual(game.getCell(5).centerNotes, []);
+    assert.equal(game.history.length, 0);
+    assert.equal(game.getProgress().filled, 30);
+  });
 });
-game.toggleCenterNote(2, "3");
-assert.deepEqual(game.getCell(2).centerNotes, ["1", "2", "4"]);
 
-game.setCell(2, "5");
-assert.deepEqual(game.getCell(2).edgeNotes, []);
-assert.deepEqual(game.getCell(2).centerNotes, []);
-assert.equal(game.getGivenConflictIndexes().has(2), true);
-game.setCell(2, "4");
-assert.equal(game.getGivenConflictIndexes().has(2), false);
+describe("setCell", () => {
+  it("sets and clears a player cell", () => {
+    const game = newGame();
+    assert.equal(game.setCell(2, "4"), true);
+    assert.equal(game.getCell(2).value, "4");
+    assert.equal(game.clearCell(2), true);
+    assert.equal(game.getCell(2).value, "");
+  });
 
-assert.throws(() =>
-  normalizePuzzle({
-    ...fallbackPuzzle,
-    puzzle: fallbackPuzzle.puzzle.slice(0, 80),
-  }),
-);
+  it("rejects writes to given cells", () => {
+    const game = newGame();
+    assert.equal(game.setCell(0, "9"), false);
+    assert.equal(game.getCell(0).value, "5");
+  });
 
-// 测试自动清除冲突标记功能
-game.setCell(2, "5"); // 先设置一个值
-game.setCell(2, ""); // 清除值以便添加标记
-game.toggleEdgeNote(2, "1"); // 在冲突单元格上添加标记
-game.toggleEdgeNote(2, "2");
-game.toggleCenterNote(2, "3");
-game.setCell(2, "5"); // 重新设置值
-game.setCell(10, "5"); // 设置一个与已有5冲突的值
-assert.deepEqual(game.getCell(2).edgeNotes, []); // 冲突的单元格标记应该被清除
-assert.deepEqual(game.getCell(2).centerNotes, []); // 冲突的单元格标记应该被清除
+  it("throws on invalid values and indexes", () => {
+    const game = newGame();
+    assert.throws(() => game.setCell(2, "x"));
+    assert.throws(() => game.setCell(2, "10"));
+    assert.throws(() => game.setCell(-1, "1"));
+    assert.throws(() => game.setCell(81, "1"));
+  });
 
-// 测试数字填满9次后标为灰色的功能
-game.setCell(0, "1");
-game.setCell(10, "1");
-game.setCell(20, "1");
-game.setCell(30, "1");
-game.setCell(40, "1");
-game.setCell(50, "1");
-game.setCell(60, "1");
-game.setCell(70, "1");
-game.setCell(80, "1"); // 现在"1"已经填满8次
-game.setCell(2, "1"); // 第9个"1"，现在"1"已经填满9次
+  it("re-setting the same value is a no-op and adds no history", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    const historyLength = game.history.length;
+    assert.equal(game.setCell(2, "4"), true);
+    assert.equal(game.history.length, historyLength);
+  });
 
-// 尝试设置另一个"1"，应该失败
-const result = game.setCell(1, "1");
-assert.equal(result, false); // 不应该允许设置已填满的数字
+  it("marks wrong entries against the solution", () => {
+    const game = newGame();
+    game.setCell(2, "5");
+    assert.equal(game.getCell(2).wrong, true);
+    game.setCell(2, "4"); // solution[2] === "4"
+    assert.equal(game.getCell(2).wrong, false);
+    assert.equal(game.getProgress().wrong, 0);
+  });
+});
 
-// 测试多选功能
-game.setCell(2, "5");
-game.setCell(10, "4");
+describe("digit count limit (9 of each)", () => {
+  it("blocks a 10th copy of a digit and unlocks after erase", () => {
+    const game = newGame();
+    // 3 个给定 "1" + 6 个玩家 "1" = 9 个
+    for (const index of [2, 3, 5, 6, 7, 8]) {
+      assert.equal(game.setCell(index, "1"), true);
+    }
+    assert.equal(game.numberCounts["1"], 9);
 
-// 模拟多选操作
-// 注意：这个测试主要是为了确保代码不会出错
-// 实际的多选功能需要在浏览器中测试
+    // 第 10 个被拒绝，棋盘不变
+    assert.equal(game.setCell(10, "1"), false);
+    assert.equal(game.getCell(10).value, "");
+    assert.equal(game.numberCounts["1"], 9);
 
-// 测试多选功能
-game.setCell(2, "5");
-game.setCell(10, "4");
+    // 擦掉一个后自动解锁
+    assert.equal(game.eraseCell(5), true);
+    assert.equal(game.numberCounts["1"], 8);
+    assert.equal(game.setCell(10, "1"), true);
+    assert.equal(game.numberCounts["1"], 9);
+  });
 
-// 模拟多选操作
-// 注意：这个测试主要是为了确保代码不会出错
-// 实际的多选功能需要在浏览器中测试
+  it("allows overwriting a cell with a different digit at the limit", () => {
+    const game = newGame();
+    for (const index of [2, 3, 5, 6, 7, 8]) {
+      game.setCell(index, "1");
+    }
+    // 覆盖一个已有的 "1" 不受它自己计数影响
+    assert.equal(game.setCell(2, "9"), true);
+    assert.equal(game.numberCounts["1"], 8);
+  });
 
-// 重新设置初始状态以便后续测试
-game.setCell(2, "5");
-game.setCell(10, "");
+  it("tracks counts through set and erase", () => {
+    const game = newGame();
+    const before = game.numberCounts["4"];
+    game.setCell(2, "4");
+    assert.equal(game.numberCounts["4"], before + 1);
+    game.eraseCell(2);
+    assert.equal(game.numberCounts["4"], before);
+  });
+});
 
-console.log("Sudoku core tests passed.");
+describe("eraseCell", () => {
+  it("clears value and notes", () => {
+    const game = newGame();
+    game.toggleEdgeNote(2, "1");
+    game.toggleCenterNote(2, "2");
+    assert.equal(game.eraseCell(2), true);
+    assert.deepEqual(game.getCell(2).edgeNotes, []);
+    assert.deepEqual(game.getCell(2).centerNotes, []);
+  });
+
+  it("rejects given cells", () => {
+    const game = newGame();
+    assert.equal(game.eraseCell(0), false);
+    assert.equal(game.getCell(0).value, "5");
+  });
+
+  it("erasing an already-empty cell adds no history", () => {
+    const game = newGame();
+    assert.equal(game.eraseCell(2), true);
+    assert.equal(game.history.length, 0);
+  });
+});
+
+describe("notes", () => {
+  it("toggles edge notes on and off", () => {
+    const game = newGame();
+    assert.deepEqual(game.toggleEdgeNote(2, "1"), { changed: true, added: true });
+    game.toggleEdgeNote(2, "5");
+    assert.deepEqual(game.getCell(2).edgeNotes, ["1", "5"]);
+    assert.deepEqual(game.toggleEdgeNote(2, "1"), { changed: true, added: false });
+    assert.deepEqual(game.getCell(2).edgeNotes, ["5"]);
+  });
+
+  it("center notes cap at 4 and toggle off on repeat", () => {
+    const game = newGame();
+    for (const value of ["1", "2", "3", "4"]) {
+      assert.deepEqual(game.toggleCenterNote(2, value), { changed: true, added: true });
+    }
+    assert.deepEqual(game.toggleCenterNote(2, "5"), {
+      changed: false,
+      reason: "center-note-limit",
+    });
+    game.toggleCenterNote(2, "3");
+    assert.deepEqual(game.getCell(2).centerNotes, ["1", "2", "4"]);
+  });
+
+  it("rejects notes on givens, filled cells, and invalid values", () => {
+    const game = newGame();
+    assert.throws(() => game.toggleEdgeNote(0, "1")); // given
+    game.setCell(2, "4");
+    assert.throws(() => game.toggleEdgeNote(2, "1")); // filled
+    assert.throws(() => game.toggleCenterNote(3, "0")); // invalid value
+  });
+
+  it("setCell clears the cell's own notes", () => {
+    const game = newGame();
+    game.toggleEdgeNote(2, "1");
+    game.toggleCenterNote(2, "2");
+    game.setCell(2, "4");
+    assert.deepEqual(game.getCell(2).edgeNotes, []);
+    assert.deepEqual(game.getCell(2).centerNotes, []);
+  });
+});
+
+describe("clearConflictingNotes", () => {
+  it("removes the placed digit from peer notes only", () => {
+    const game = newGame();
+    game.toggleEdgeNote(10, "4"); // 同宫
+    game.toggleCenterNote(11, "4"); // 同宫+同列
+    game.toggleEdgeNote(10, "9"); // 其他数字保留
+    game.toggleEdgeNote(40, "4"); // 非 peer 保留
+
+    game.setCell(2, "4");
+
+    assert.deepEqual(game.getCell(10).edgeNotes, ["9"]);
+    assert.deepEqual(game.getCell(11).centerNotes, []);
+    assert.deepEqual(game.getCell(40).edgeNotes, ["4"]);
+  });
+});
+
+describe("getPeerIndexes", () => {
+  it("returns 20 peers covering row, column, and box, excluding self", () => {
+    const game = newGame();
+    const peers = game.getPeerIndexes(0);
+    assert.equal(peers.size, 20);
+    assert.equal(peers.has(0), false);
+    assert.equal(peers.has(8), true); // 同行
+    assert.equal(peers.has(72), true); // 同列
+    assert.equal(peers.has(20), true); // 同宫
+    assert.equal(peers.has(40), false); // 无关格
+  });
+
+  it("center cell also has exactly 20 peers", () => {
+    const game = newGame();
+    assert.equal(game.getPeerIndexes(40).size, 20);
+  });
+});
+
+describe("getGivenConflictIndexes", () => {
+  it("flags both the entry and the clashing given", () => {
+    const game = newGame();
+    game.setCell(2, "5"); // 与 index 0 的给定 "5" 同行同宫
+    const conflicts = game.getGivenConflictIndexes();
+    assert.equal(conflicts.has(0), true);
+    assert.equal(conflicts.has(2), true);
+  });
+
+  it("clears when the entry changes", () => {
+    const game = newGame();
+    game.setCell(2, "5");
+    game.setCell(2, "4");
+    assert.equal(game.getGivenConflictIndexes().size, 0);
+  });
+});
+
+describe("getProgress", () => {
+  it("completes when the full solution is entered", () => {
+    const game = newGame();
+    for (let index = 0; index < 81; index += 1) {
+      if (!game.getCell(index).given) {
+        assert.equal(game.setCell(index, puzzle.solution[index]), true);
+      }
+    }
+    const progress = game.getProgress();
+    assert.equal(progress.filled, 81);
+    assert.equal(progress.wrong, 0);
+    assert.equal(progress.complete, true);
+  });
+
+  it("a full grid with mistakes is not complete", () => {
+    const game = newGame();
+    for (let index = 0; index < 81; index += 1) {
+      if (!game.getCell(index).given) {
+        game.setCell(index, puzzle.solution[index]);
+      }
+    }
+    // 交换两个格子的值制造错误（直接改会被满9次规则挡住）
+    game.eraseCell(2); // solution "4"
+    game.eraseCell(7); // solution "1"
+    assert.equal(game.setCell(2, "1"), true);
+    assert.equal(game.setCell(7, "4"), true);
+    const progress = game.getProgress();
+    assert.equal(progress.filled, 81);
+    assert.equal(progress.wrong, 2);
+    assert.equal(progress.complete, false);
+  });
+});
+
+describe("undo", () => {
+  it("returns false with empty history", () => {
+    const game = newGame();
+    assert.equal(game.undo(), false);
+  });
+
+  it("restores a cell value and its counts", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    game.setCell(2, "9");
+    assert.equal(game.undo(), true);
+    assert.equal(game.getCell(2).value, "4");
+    game.undo();
+    assert.equal(game.getCell(2).value, "");
+    assert.equal(game.numberCounts["4"], newGame().numberCounts["4"]);
+  });
+
+  it("restores an erased cell's value and notes", () => {
+    const game = newGame();
+    game.toggleEdgeNote(2, "1");
+    game.toggleCenterNote(2, "2");
+    game.eraseCell(2);
+    assert.equal(game.undo(), true);
+    assert.deepEqual(game.getCell(2).edgeNotes, ["1"]);
+    assert.deepEqual(game.getCell(2).centerNotes, ["2"]);
+  });
+
+  it("undoes note toggles", () => {
+    const game = newGame();
+    game.toggleEdgeNote(2, "1");
+    game.toggleEdgeNote(2, "5");
+    game.undo();
+    assert.deepEqual(game.getCell(2).edgeNotes, ["1"]);
+    game.toggleCenterNote(3, "7");
+    game.undo();
+    assert.deepEqual(game.getCell(3).centerNotes, []);
+  });
+
+  it("restores peer notes wiped by clearConflictingNotes", () => {
+    const game = newGame();
+    game.toggleEdgeNote(10, "4");
+    game.toggleCenterNote(11, "4");
+    game.setCell(2, "4"); // 连带清掉 10/11 的 "4" 笔记
+
+    assert.equal(game.undo(), true);
+    assert.equal(game.getCell(2).value, "");
+    assert.deepEqual(game.getCell(10).edgeNotes, ["4"]);
+    assert.deepEqual(game.getCell(11).centerNotes, ["4"]);
+  });
+
+  it("unwinds multiple steps in order", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    game.setCell(3, "6");
+    game.toggleEdgeNote(5, "8");
+    game.undo();
+    game.undo();
+    game.undo();
+    assert.equal(game.getCell(2).value, "");
+    assert.equal(game.getCell(3).value, "");
+    assert.deepEqual(game.getCell(5).edgeNotes, []);
+    assert.equal(game.undo(), false);
+  });
+});

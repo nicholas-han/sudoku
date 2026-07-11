@@ -4,9 +4,6 @@ export class SudokuGame {
   constructor(puzzle) {
     this.puzzle = puzzle;
     this.reset();
-    this.numberCounts = {}; // 跟踪每个数字的出现次数
-    this.updateNumberCounts();
-    this.history = []; // 保存操作历史
   }
 
   reset() {
@@ -34,35 +31,62 @@ export class SudokuGame {
       throw new Error(`Invalid cell value: ${value}`);
     }
 
-    // 检查数字是否已经填满9次（不阻止输入，由UI处理）
-    // 注意：仍然允许输入，但UI会显示灰色表示已满
-    if (value !== "" && this.numberCounts[value] >= 9) {
-      // 更新计数，但不阻止输入
-      this.numberCounts[value]++;
+    if (this.values[index] === value) {
+      return true;
     }
 
-    // 保存当前状态到历史
+    // 数字已填满9次时拒绝写入；计数由 updateNumberCounts 从棋盘推导，擦除后自动解锁
+    if (value !== "" && this.countValue(value, index) >= 9) {
+      return false;
+    }
+
     const currentState = {
       index,
       oldValue: this.values[index],
       newValue: value,
-      oldEdgeNotes: this.edgeNotes[index] ? new Set(this.edgeNotes[index]) : null,
-      oldCenterNotes: this.centerNotes[index] ? [...this.centerNotes[index]] : null,
+      oldEdgeNotes: new Set(this.edgeNotes[index]),
+      oldCenterNotes: [...this.centerNotes[index]],
+      peerNotes: value !== "" ? this.snapshotPeerNotes(index, value) : [],
     };
 
     this.values[index] = value;
 
     if (value !== "") {
       this.clearNotes(index);
-      this.clearConflictingNotes(index); // 清除冲突标记
+      this.clearConflictingNotes(index);
     }
-    // 总是需要更新数字计数
     this.updateNumberCounts();
 
-    // 添加到历史
     this.history.push(currentState);
 
     return true;
+  }
+
+  countValue(value, excludeIndex) {
+    let count = 0;
+    for (let index = 0; index < CELL_COUNT; index += 1) {
+      if (index !== excludeIndex && this.values[index] === value) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  snapshotPeerNotes(index, value) {
+    const snapshots = [];
+    for (const peerIndex of this.getPeerIndexes(index)) {
+      if (
+        this.edgeNotes[peerIndex].has(value) ||
+        this.centerNotes[peerIndex].includes(value)
+      ) {
+        snapshots.push({
+          index: peerIndex,
+          edgeNotes: new Set(this.edgeNotes[peerIndex]),
+          centerNotes: [...this.centerNotes[peerIndex]],
+        });
+      }
+    }
+    return snapshots;
   }
 
   clearCell(index) {
@@ -76,18 +100,25 @@ export class SudokuGame {
       return false;
     }
 
-    // 保存状态到历史
+    if (
+      this.values[index] === "" &&
+      this.edgeNotes[index].size === 0 &&
+      this.centerNotes[index].length === 0
+    ) {
+      return true;
+    }
+
     const currentState = {
       index,
       oldValue: this.values[index],
-      oldEdgeNotes: this.edgeNotes[index] ? new Set(this.edgeNotes[index]) : null,
-      oldCenterNotes: this.centerNotes[index] ? [...this.centerNotes[index]] : null,
+      oldEdgeNotes: new Set(this.edgeNotes[index]),
+      oldCenterNotes: [...this.centerNotes[index]],
     };
 
     this.values[index] = "";
     this.clearNotes(index);
+    this.updateNumberCounts();
 
-    // 添加到历史
     this.history.push(currentState);
 
     return true;
@@ -192,23 +223,6 @@ export class SudokuGame {
         this.numberCounts[value] = (this.numberCounts[value] || 0) + 1;
       }
     }
-  }
-
-  getConflictIndexes(index) {
-    const conflicts = new Set();
-    const value = this.values[index];
-
-    if (!value) return conflicts;
-
-    const peers = this.getPeerIndexes(index);
-
-    for (const peerIndex of peers) {
-      if (this.values[peerIndex] === value) {
-        conflicts.add(peerIndex);
-      }
-    }
-
-    return conflicts;
   }
 
   clearConflictingNotes(index) {
@@ -352,16 +366,17 @@ export class SudokuGame {
     } else {
       // 恢复cell值操作
       this.values[lastAction.index] = lastAction.oldValue;
+      this.edgeNotes[lastAction.index] = lastAction.oldEdgeNotes;
+      this.centerNotes[lastAction.index] = lastAction.oldCenterNotes;
 
-      // 恢复notes
-      if (lastAction.oldEdgeNotes) {
-        this.edgeNotes[lastAction.index] = lastAction.oldEdgeNotes;
-      }
-      if (lastAction.oldCenterNotes) {
-        this.centerNotes[lastAction.index] = lastAction.oldCenterNotes;
+      // 恢复被 clearConflictingNotes 连带清除的邻格笔记
+      if (lastAction.peerNotes) {
+        for (const snapshot of lastAction.peerNotes) {
+          this.edgeNotes[snapshot.index] = new Set(snapshot.edgeNotes);
+          this.centerNotes[snapshot.index] = [...snapshot.centerNotes];
+        }
       }
 
-      // 更新数字计数
       this.updateNumberCounts();
     }
 
