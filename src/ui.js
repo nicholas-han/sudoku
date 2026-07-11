@@ -194,7 +194,7 @@ function bindEvents() {
   });
 
   resetButton.addEventListener("click", () => {
-    if (confirm("确定要重置当前谜题吗？这将清除所有已填入的数字。")) {
+    if (confirm("Reset this puzzle? All entered digits and marks will be cleared.")) {
       game.reset();
       selectedIndexes = new Set([0]);
       primaryIndex = 0;
