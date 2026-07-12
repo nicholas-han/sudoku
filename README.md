@@ -4,6 +4,7 @@ A lightweight browser Sudoku game prototype. Plain HTML/CSS/JS modules — no fr
 
 ## Features
 
+- Puzzle bank: the Exit button opens a puzzle chooser, filterable by difficulty.
 - Answer mode: enter final digits.
 - Corner Marks: track 1-9 candidates around the edge of a cell.
 - Center Marks: track up to 4 digits in the middle of a cell; repeat a digit to remove it.
@@ -36,10 +37,54 @@ Then open `http://localhost:8000`.
 ## Project Layout
 
 - `src/game.js` — game state and rules: values, marks, conflicts, digit counts, undo history. No DOM access.
+- `src/backtracker.js` — exhaustive backtracking search; `solve()` and `countSolutions()` for uniqueness validation. Always finds the answer, no logic techniques involved.
+- `src/grader.js` — modular difficulty grader: a rule-based, human-style solver; add techniques to the `TECHNIQUES` registry to refine grades.
+- `src/canonical.js` — isomorphism canonical form (8 symmetries × digit relabeling) used for dedup.
 - `src/selection.js` — pure helper for rectangular multi-select ranges.
-- `src/storage.js` — puzzle loading, format validation, embedded fallback puzzle.
-- `src/ui.js` — DOM rendering and input handling (mouse, keyboard, drag selection).
+- `src/storage.js` — puzzle/index loading, format validation, embedded fallbacks.
+- `src/ui.js` — DOM rendering and input handling (mouse, keyboard, drag selection, puzzle picker).
+- `tools/add-puzzle.js` — puzzle import CLI (see below).
+- `tools/serve.js` — zero-dependency dev server with no-store cache headers.
 - `tests/` — unit tests for everything above except `ui.js`.
+
+## Importing Puzzles
+
+`tools/add-puzzle.js` adds puzzles to the bank from a photo (OCR) or by hand:
+
+```bash
+# OCR a photo with a local model via Ollama (default; no key, no cloud)
+node tools/add-puzzle.js photos/IMG_1234.jpg
+
+# other providers (need the matching env var)
+node tools/add-puzzle.js p.jpg --provider anthropic   # ANTHROPIC_API_KEY
+node tools/add-puzzle.js p.jpg --provider glm         # GLM_API_KEY
+# --provider deepseek exists but errors until their API accepts images
+
+# manual entry without a photo
+node tools/add-puzzle.js --grid 530070000...  --source "Sudoku Book vol.2 p.34"
+
+# optionally enter the printed answer as a cross-check (works with photos too)
+node tools/add-puzzle.js --grid 530070000... --solution 534678912...
+
+# regenerate puzzles/index.json from the puzzle files
+node tools/add-puzzle.js --rebuild
+```
+
+The pipeline shows the recognized grid for confirmation (with per-cell
+edits like `r3c5=7`), rejects grids without a unique solution, dedups
+against the bank up to rotation/mirroring/digit relabeling, auto-grades
+difficulty (`--difficulty` overrides), and writes the puzzle JSON plus
+an index entry. The stored `solution` always comes from the solver;
+`--solution` lets you enter the printed answer as a cross-check — any
+disagreement with the givens or the solver aborts the import, catching
+transcription errors on either side. For local OCR, install [Ollama](https://ollama.com) and
+pull a small vision model such as `qwen3-vl` or `minicpm-v`.
+
+OCR caveat: vision models love to *solve* the puzzle instead of
+transcribing it. The prompt forbids it and the tool warns when a grid
+has suspiciously many givens — compare against the photo before
+accepting. Keep photos out of the repo (`photos/` is gitignored); only
+the file name is recorded in the puzzle's `source` field.
 
 ## Test
 
@@ -48,6 +93,27 @@ Tests run on the built-in Node.js test runner (Node 18+, no dependencies):
 ```bash
 npm test
 ```
+
+## Future Work
+
+1. **Backend puzzle storage.** Design a proper backend for the puzzle
+   bank instead of committed JSON files — storage schema, an API the
+   game reads from, and how imports write to it.
+2. **Web entry point for photo import.** An upload page (drag & drop)
+   so puzzles can be added from the browser instead of the CLI. Needs
+   a small server endpoint that reuses the existing import pipeline
+   (validation, dedup, grading) and an on-screen grid for correcting
+   the recognized digits.
+3. **Image recognition for import**, evaluating three approaches:
+   1. a small purpose-built CNN (grid detection + per-cell digit classifier);
+   2. off-the-shelf OCR tooling;
+   3. a small local vision model (the current default via Ollama).
+   The provider abstraction in `tools/lib/ocr.js` is the plug-in point.
+4. **Auto-solving with a custom rule set.** Solving rules will be
+   user-defined and accumulated incrementally over time. How rules are
+   invoked (iteration strategy, ordering, when to loop back after
+   progress) is part of the design, not fixed yet. The `TECHNIQUES`
+   registry in `src/grader.js` is the starting seed for this work.
 
 ## Puzzle Format
 
@@ -59,7 +125,16 @@ Core fields:
 - `puzzle`: 81 characters; `0` means empty.
 - `solution`: 81 characters; the completed answer.
 - `type`: currently supports `classic-9x9`.
+- `difficulty`: `easy | medium | hard | expert` (auto-graded on import).
 - `rules`: rule list for future variants.
+- `source` (optional): provenance — `kind` (`photo`/`manual`), OCR `provider`/`model`, photo `image` basename, free-form `note`.
+- `createdAt` (optional): import timestamp.
+
+`puzzles/index.json` (`sudoku-index-v1`) is the bank manifest the game
+loads for the puzzle picker. Each entry carries `id`, `file`, `title`,
+`difficulty`, and the puzzle's `canonical` key used for duplicate
+detection. It is maintained by the import tool; rebuild it any time
+with `--rebuild`.
 
 ```json
 {

@@ -1,6 +1,7 @@
 import { CELL_COUNT, EMPTY_CELL } from "./constants.js";
 
 export const SUPPORTED_FORMAT = "sudoku-v1";
+export const SUPPORTED_INDEX_FORMAT = "sudoku-index-v1";
 
 export const fallbackPuzzle = {
   format: SUPPORTED_FORMAT,
@@ -31,6 +32,75 @@ export async function loadPuzzle(url = "./puzzles/classic-001.json") {
   }
 }
 
+// 兜底索引：索引加载失败时游戏仍可玩内置题
+export const fallbackIndex = {
+  format: SUPPORTED_INDEX_FORMAT,
+  updatedAt: null,
+  puzzles: [
+    {
+      id: fallbackPuzzle.id,
+      file: `${fallbackPuzzle.id}.json`,
+      title: fallbackPuzzle.title,
+      difficulty: fallbackPuzzle.difficulty,
+      canonical: null,
+    },
+  ],
+};
+
+export async function loadIndex(url = "./puzzles/index.json") {
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Cannot load index: ${response.status}`);
+    }
+
+    return normalizeIndex(await response.json());
+  } catch (error) {
+    console.warn("Using embedded index fallback.", error);
+    return fallbackIndex;
+  }
+}
+
+export function normalizeIndex(rawIndex) {
+  if (!rawIndex || typeof rawIndex !== "object") {
+    throw new Error("Index must be an object.");
+  }
+
+  if (rawIndex.format !== SUPPORTED_INDEX_FORMAT) {
+    throw new Error(`Unsupported index format: ${rawIndex.format}`);
+  }
+
+  if (!Array.isArray(rawIndex.puzzles)) {
+    throw new Error("Index must contain a puzzles array.");
+  }
+
+  const puzzles = rawIndex.puzzles.map((entry, position) => {
+    if (
+      !entry ||
+      typeof entry.id !== "string" ||
+      typeof entry.file !== "string" ||
+      typeof entry.title !== "string"
+    ) {
+      throw new Error(`Index entry ${position} is missing id, file, or title.`);
+    }
+
+    return {
+      id: entry.id,
+      file: entry.file,
+      title: entry.title,
+      difficulty: typeof entry.difficulty === "string" ? entry.difficulty : null,
+      canonical: typeof entry.canonical === "string" ? entry.canonical : null,
+    };
+  });
+
+  return {
+    format: rawIndex.format,
+    updatedAt: typeof rawIndex.updatedAt === "string" ? rawIndex.updatedAt : null,
+    puzzles,
+  };
+}
+
 export function normalizePuzzle(rawPuzzle) {
   if (!rawPuzzle || typeof rawPuzzle !== "object") {
     throw new Error("Puzzle must be an object.");
@@ -46,6 +116,9 @@ export function normalizePuzzle(rawPuzzle) {
     solution: rawPuzzle.solution,
     rules: Array.isArray(rawPuzzle.rules) ? rawPuzzle.rules : [],
     tags: Array.isArray(rawPuzzle.tags) ? rawPuzzle.tags : [],
+    source:
+      rawPuzzle.source && typeof rawPuzzle.source === "object" ? rawPuzzle.source : null,
+    createdAt: typeof rawPuzzle.createdAt === "string" ? rawPuzzle.createdAt : null,
   };
 
   validatePuzzle(puzzle);

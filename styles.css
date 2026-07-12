@@ -282,6 +282,117 @@ h1 {
   background: linear-gradient(to right, var(--accent), transparent);
 }
 
+#puzzle-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+#puzzle-dialog::backdrop {
+  background: rgba(32, 36, 42, 0.45);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+#dialog-close {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7fafc;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dialog-difficulty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.dialog-difficulty button {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f7fafc;
+  color: var(--muted);
+  cursor: pointer;
+  text-transform: capitalize;
+}
+
+.dialog-difficulty button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.dialog-list {
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.puzzle-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f7fafc;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.puzzle-option:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.puzzle-option.current {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.difficulty-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-transform: capitalize;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.difficulty-badge.difficulty-expert {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.dialog-empty {
+  margin: 4px 2px;
+  color: var(--muted);
+}
+
 .mode-switch {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -395,10 +506,22 @@ h1 {
 .actions #erase,
 .actions #check,
 .actions #reset,
+.actions #exit,
 .number-pad #erase,
 .number-pad #undo {
   backdrop-filter: blur(10px);
   transition: all 0.2s ease;
+}
+
+.actions #exit {
+  background: rgba(156, 163, 175, 0.15);
+  border-color: rgba(156, 163, 175, 0.3);
+  color: var(--text);
+}
+
+.actions #exit:hover {
+  background: rgba(156, 163, 175, 0.25);
+  border-color: rgba(156, 163, 175, 0.5);
 }
 
 .actions #erase,
