@@ -122,6 +122,54 @@ export function renderAsciiGrid(gridString) {
   return lines.join("\n");
 }
 
+function cellName(index) {
+  return `r${Math.floor(index / GRID_SIZE) + 1}c${(index % GRID_SIZE) + 1}`;
+}
+
+// 校验用户录入的答案：格式、内部无冲突、与题目给定数一致、
+// 与求解器算出的唯一解一致。任何不一致都说明题目或答案有一方录错了。
+export function checkProvidedSolution(grid, providedSolution, solvedSolution) {
+  const errors = [];
+
+  if (typeof providedSolution !== "string" || !/^[1-9]{81}$/.test(providedSolution)) {
+    return ["Solution must be exactly 81 digits (1-9, no blanks)."];
+  }
+
+  for (let index = 0; index < CELL_COUNT; index += 1) {
+    const value = providedSolution[index];
+    for (const peer of peerIndexes(index)) {
+      if (peer > index && providedSolution[peer] === value) {
+        errors.push(`Solution conflicts with itself: ${cellName(index)} and ${cellName(peer)} both have ${value}.`);
+      }
+    }
+  }
+  if (errors.length > 0) {
+    return errors;
+  }
+
+  const givenMismatches = [];
+  const solvedMismatches = [];
+  for (let index = 0; index < CELL_COUNT; index += 1) {
+    if (grid[index] !== EMPTY_CELL && grid[index] !== providedSolution[index]) {
+      givenMismatches.push(`${cellName(index)} (given ${grid[index]}, solution ${providedSolution[index]})`);
+    }
+    if (solvedSolution && providedSolution[index] !== solvedSolution[index]) {
+      solvedMismatches.push(`${cellName(index)} (entered ${providedSolution[index]}, solved ${solvedSolution[index]})`);
+    }
+  }
+
+  if (givenMismatches.length > 0) {
+    errors.push(`Solution contradicts the puzzle givens at: ${givenMismatches.join(", ")}.`);
+  } else if (solvedMismatches.length > 0) {
+    errors.push(
+      `Solution disagrees with the solver's unique solution at: ${solvedMismatches.join(", ")}. ` +
+        "Either the puzzle was transcribed wrong or the entered solution has a typo.",
+    );
+  }
+
+  return errors;
+}
+
 // 形如 r3c5=7 的单格修正；r/c 为 1-9，值 0 表示清空
 export function applyCellEdit(gridString, edit) {
   const match = /^r([1-9])c([1-9])=([0-9])$/i.exec(edit.trim());

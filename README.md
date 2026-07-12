@@ -63,6 +63,9 @@ node tools/add-puzzle.js p.jpg --provider glm         # GLM_API_KEY
 # manual entry without a photo
 node tools/add-puzzle.js --grid 530070000...  --source "Sudoku Book vol.2 p.34"
 
+# optionally enter the printed answer as a cross-check (works with photos too)
+node tools/add-puzzle.js --grid 530070000... --solution 534678912...
+
 # regenerate puzzles/index.json from the puzzle files
 node tools/add-puzzle.js --rebuild
 ```
@@ -71,7 +74,10 @@ The pipeline shows the recognized grid for confirmation (with per-cell
 edits like `r3c5=7`), rejects grids without a unique solution, dedups
 against the bank up to rotation/mirroring/digit relabeling, auto-grades
 difficulty (`--difficulty` overrides), and writes the puzzle JSON plus
-an index entry. For local OCR, install [Ollama](https://ollama.com) and
+an index entry. The stored `solution` always comes from the solver;
+`--solution` lets you enter the printed answer as a cross-check — any
+disagreement with the givens or the solver aborts the import, catching
+transcription errors on either side. For local OCR, install [Ollama](https://ollama.com) and
 pull a small vision model such as `qwen3-vl` or `minicpm-v`.
 
 OCR caveat: vision models love to *solve* the puzzle instead of

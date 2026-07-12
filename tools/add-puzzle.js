@@ -21,6 +21,7 @@ import {
   applyCellEdit,
   buildIndexEntry,
   buildPuzzleJson,
+  checkProvidedSolution,
   findDuplicate,
   nextId,
   rebuildIndex,
@@ -36,6 +37,7 @@ async function main() {
     allowPositionals: true,
     options: {
       grid: { type: "string" },
+      solution: { type: "string" },
       provider: { type: "string", default: "ollama" },
       model: { type: "string" },
       "base-url": { type: "string" },
@@ -102,6 +104,16 @@ async function main() {
   grid = confirmed;
 
   const solution = solve(grid);
+
+  // 4b. 用户录入的答案作为交叉校验：与给定数、与求解结果都必须一致
+  if (values.solution) {
+    const solutionErrors = checkProvidedSolution(grid, values.solution.trim(), solution);
+    if (solutionErrors.length > 0) {
+      for (const error of solutionErrors) console.error(`ERROR: ${error}`);
+      fail("Provided solution failed validation. Nothing written.");
+    }
+    console.log("Provided solution matches the solver's result.");
+  }
 
   // 5. 查重
   const index = normalizeIndex(JSON.parse(await readFile(INDEX_PATH, "utf8")));
@@ -233,6 +245,7 @@ function printUsage() {
   node tools/add-puzzle.js --rebuild
 
 Options:
+  --solution <s>    81 digits; cross-checked against the givens and the solver
   --provider <p>    ollama (default, local) | glm | anthropic | deepseek
   --model <m>       override the provider's default model
   --base-url <u>    override the provider's base URL

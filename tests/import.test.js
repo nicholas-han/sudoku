@@ -4,6 +4,7 @@ import {
   applyCellEdit,
   buildIndexEntry,
   buildPuzzleJson,
+  checkProvidedSolution,
   findDuplicate,
   nextId,
   rebuildIndex,
@@ -136,6 +137,48 @@ describe("renderAsciiGrid", () => {
     assert.equal(lines.length, 11);
     assert.equal(lines[0], "5 3 . | . 7 . | . . .");
     assert.equal(lines[3], "------+-------+------");
+  });
+});
+
+describe("checkProvidedSolution", () => {
+  const SOLUTION = fallbackPuzzle.solution;
+
+  it("accepts the correct solution", () => {
+    assert.deepEqual(checkProvidedSolution(GRID, SOLUTION, SOLUTION), []);
+  });
+
+  it("rejects malformed strings (wrong length, zeros)", () => {
+    assert.match(checkProvidedSolution(GRID, SOLUTION.slice(0, 80), SOLUTION)[0], /81 digits/);
+    assert.match(
+      checkProvidedSolution(GRID, "0" + SOLUTION.slice(1), SOLUTION)[0],
+      /81 digits/,
+    );
+  });
+
+  it("rejects a solution with internal conflicts", () => {
+    // 把 r1c1 改成与 r1c2 相同的数字制造冲突
+    const conflicted = SOLUTION[1] + SOLUTION.slice(1);
+    const errors = checkProvidedSolution(GRID, conflicted, SOLUTION);
+    assert.match(errors[0], /conflicts with itself/);
+  });
+
+  it("rejects a solution that contradicts the givens, naming the cell", () => {
+    // 交换答案中 1 和 2 两种数字 → 内部依然合法，但与给定数矛盾
+    const swapped = SOLUTION.split("")
+      .map((ch) => (ch === "1" ? "2" : ch === "2" ? "1" : ch))
+      .join("");
+    const errors = checkProvidedSolution(GRID, swapped, swapped);
+    assert.match(errors[0], /contradicts the puzzle givens at: r2c4/);
+  });
+
+  it("rejects a solution that disagrees with the solver", () => {
+    // 同样的换数字手法，但套在无给定数约束的空盘上 → 只触发求解器不一致
+    const swapped = SOLUTION.split("")
+      .map((ch) => (ch === "1" ? "2" : ch === "2" ? "1" : ch))
+      .join("");
+    const errors = checkProvidedSolution("0".repeat(81), swapped, SOLUTION);
+    assert.match(errors[0], /disagrees with the solver/);
+    assert.match(errors[0], /typo/);
   });
 });
 
