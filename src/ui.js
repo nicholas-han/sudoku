@@ -1,8 +1,11 @@
+import { DIFFICULTIES } from "./constants.js";
 import { SudokuGame } from "./game.js";
-import { loadPuzzle } from "./storage.js";
+import { loadIndex, loadPuzzle } from "./storage.js";
 import { rangeIndexes } from "./selection.js";
 
 const boardElement = document.querySelector("#board");
+const difficultyFilterElement = document.querySelector("#difficulty-filter");
+const puzzleSelectElement = document.querySelector("#puzzle-select");
 const numberPadElement = document.querySelector("#number-pad");
 const modeElement = document.querySelector("#input-mode");
 const titleElement = document.querySelector("#puzzle-title");
@@ -13,6 +16,7 @@ const checkButton = document.querySelector("#check");
 const resetButton = document.querySelector("#reset");
 
 let game;
+let puzzleIndex;
 let inputMode = "value";
 let selectedIndexes = new Set([0]);
 let primaryIndex = 0;
@@ -23,16 +27,83 @@ let dragStartIndex = null;
 bootstrap();
 
 async function bootstrap() {
-  const puzzle = await loadPuzzle();
+  puzzleIndex = await loadIndex();
+
+  renderDifficultyFilter();
+  renderPuzzleSelect();
+
+  const puzzle = await loadPuzzle(entryUrl(currentEntries()[0]));
+  startPuzzle(puzzle);
+  bindEvents();
+}
+
+function startPuzzle(puzzle) {
   game = new SudokuGame(puzzle);
+  inputMode = "value";
+  selectedIndexes = new Set([0]);
+  primaryIndex = 0;
 
   titleElement.textContent = puzzle.title;
   metaElement.textContent = `${puzzle.type} · ${puzzle.difficulty} · ${puzzle.id}`;
 
   renderBoard();
+  // 数字键盘的 used-up 灰显在渲染时烘焙，切题必须整体重渲染
   renderNumberPad();
   updateView("Select a cell, then enter a digit.");
-  bindEvents();
+}
+
+function entryUrl(entry) {
+  return `./puzzles/${entry.file}`;
+}
+
+// 当前难度筛选下的题目列表；筛选结果为空时退回全部
+function currentEntries() {
+  const filter = difficultyFilterElement.value;
+  const filtered =
+    filter === "all"
+      ? puzzleIndex.puzzles
+      : puzzleIndex.puzzles.filter((entry) => entry.difficulty === filter);
+  return filtered.length > 0 ? filtered : puzzleIndex.puzzles;
+}
+
+function renderDifficultyFilter() {
+  difficultyFilterElement.innerHTML = "";
+
+  const all = document.createElement("option");
+  all.value = "all";
+  all.textContent = "All difficulties";
+  difficultyFilterElement.append(all);
+
+  for (const difficulty of DIFFICULTIES) {
+    const option = document.createElement("option");
+    option.value = difficulty;
+    option.textContent = difficulty;
+    difficultyFilterElement.append(option);
+  }
+}
+
+function renderPuzzleSelect(preferredId) {
+  puzzleSelectElement.innerHTML = "";
+
+  for (const entry of currentEntries()) {
+    const option = document.createElement("option");
+    option.value = entry.id;
+    option.textContent = entry.difficulty ? `${entry.title} (${entry.difficulty})` : entry.title;
+    puzzleSelectElement.append(option);
+  }
+
+  if (preferredId && currentEntries().some((entry) => entry.id === preferredId)) {
+    puzzleSelectElement.value = preferredId;
+  }
+}
+
+async function switchToSelectedPuzzle() {
+  const entry = currentEntries().find((e) => e.id === puzzleSelectElement.value);
+  if (!entry || entry.id === game?.puzzle.id) {
+    return;
+  }
+  const puzzle = await loadPuzzle(entryUrl(entry));
+  startPuzzle(puzzle);
 }
 
 function renderBoard() {
@@ -83,6 +154,15 @@ function renderNumberPad() {
 }
 
 function bindEvents() {
+  difficultyFilterElement.addEventListener("change", () => {
+    renderPuzzleSelect(game?.puzzle.id);
+    switchToSelectedPuzzle();
+  });
+
+  puzzleSelectElement.addEventListener("change", () => {
+    switchToSelectedPuzzle();
+  });
+
   // Cmd/Ctrl+点击：切换单元格的选中状态；普通单选在 pointerdown 中处理
   boardElement.addEventListener("click", (event) => {
     const button = event.target.closest("[data-index]");
@@ -266,6 +346,11 @@ function handleKeyboard(event) {
 
   // 不劫持系统快捷键（Cmd+A、Ctrl+S、Cmd+1 等）
   if (event.metaKey || event.ctrlKey || event.altKey) {
+    return;
+  }
+
+  // 下拉框等表单控件聚焦时不接管键盘
+  if (event.target.matches("select, input, textarea")) {
     return;
   }
 
