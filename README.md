@@ -94,6 +94,27 @@ Tests run on the built-in Node.js test runner (Node 18+, no dependencies):
 npm test
 ```
 
+## Future Work
+
+1. **Backend puzzle storage.** Design a proper backend for the puzzle
+   bank instead of committed JSON files — storage schema, an API the
+   game reads from, and how imports write to it.
+2. **Web entry point for photo import.** An upload page (drag & drop)
+   so puzzles can be added from the browser instead of the CLI. Needs
+   a small server endpoint that reuses the existing import pipeline
+   (validation, dedup, grading) and an on-screen grid for correcting
+   the recognized digits.
+3. **Image recognition for import**, evaluating three approaches:
+   1. a small purpose-built CNN (grid detection + per-cell digit classifier);
+   2. off-the-shelf OCR tooling;
+   3. a small local vision model (the current default via Ollama).
+   The provider abstraction in `tools/lib/ocr.js` is the plug-in point.
+4. **Auto-solving with a custom rule set.** Solving rules will be
+   user-defined and accumulated incrementally over time. How rules are
+   invoked (iteration strategy, ordering, when to loop back after
+   progress) is part of the design, not fixed yet. The `TECHNIQUES`
+   registry in `src/grader.js` is the starting seed for this work.
+
 ## Puzzle Format
 
 Puzzles are stored as JSON. The current format version is `sudoku-v1`.
