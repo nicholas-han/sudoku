@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { DIFFICULTIES } from "../src/constants.js";
 import { canonicalKey } from "../src/canonical.js";
 import { gradePuzzle } from "../src/grader.js";
-import { countSolutions, solve } from "../src/solver.js";
+import { countSolutions, solve } from "../src/backtracker.js";
 import { normalizeIndex } from "../src/storage.js";
 import { recognizeGrid } from "./lib/ocr.js";
 import {

@@ -37,8 +37,8 @@ Then open `http://localhost:8000`.
 ## Project Layout
 
 - `src/game.js` — game state and rules: values, marks, conflicts, digit counts, undo history. No DOM access.
-- `src/solver.js` — backtracking solver; `solve()` and `countSolutions()` for uniqueness validation.
-- `src/grader.js` — modular difficulty grader; add techniques to the `TECHNIQUES` registry to refine grades.
+- `src/backtracker.js` — exhaustive backtracking search; `solve()` and `countSolutions()` for uniqueness validation. Always finds the answer, no logic techniques involved.
+- `src/grader.js` — modular difficulty grader: a rule-based, human-style solver; add techniques to the `TECHNIQUES` registry to refine grades.
 - `src/canonical.js` — isomorphism canonical form (8 symmetries × digit relabeling) used for dedup.
 - `src/selection.js` — pure helper for rectangular multi-select ranges.
 - `src/storage.js` — puzzle/index loading, format validation, embedded fallbacks.

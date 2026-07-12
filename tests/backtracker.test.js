@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { countSolutions, peerIndexes, solve } from "../src/solver.js";
+import { countSolutions, peerIndexes, solve } from "../src/backtracker.js";
 import { fallbackPuzzle } from "../src/storage.js";
 
 const PUZZLE = fallbackPuzzle.puzzle;

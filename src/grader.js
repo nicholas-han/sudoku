@@ -1,5 +1,5 @@
 import { CELL_COUNT, DIFFICULTIES, GRID_SIZE } from "./constants.js";
-import { computeCandidates, gridToCells, peerIndexes } from "./solver.js";
+import { computeCandidates, gridToCells, peerIndexes } from "./backtracker.js";
 
 // 模块化难度评级器。
 //

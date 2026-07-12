@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DIFFICULTIES } from "../src/constants.js";
 import { TECHNIQUES, UNITS, gradePuzzle } from "../src/grader.js";
-import { solve } from "../src/solver.js";
+import { solve } from "../src/backtracker.js";
 import { fallbackPuzzle } from "../src/storage.js";
 
 // 公认的困难题（Platinum Blonde，21 提示数），单靠基础技巧解不动

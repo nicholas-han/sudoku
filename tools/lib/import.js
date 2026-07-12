@@ -1,6 +1,6 @@
 import { CELL_COUNT, EMPTY_CELL, GRID_SIZE } from "../../src/constants.js";
 import { canonicalKey } from "../../src/canonical.js";
-import { peerIndexes } from "../../src/solver.js";
+import { peerIndexes } from "../../src/backtracker.js";
 import { SUPPORTED_FORMAT, SUPPORTED_INDEX_FORMAT, normalizePuzzle } from "../../src/storage.js";
 
 // 17 是经证明的经典数独最少提示数
