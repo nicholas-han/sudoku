@@ -4,8 +4,11 @@ import { loadIndex, loadPuzzle } from "./storage.js";
 import { rangeIndexes } from "./selection.js";
 
 const boardElement = document.querySelector("#board");
-const difficultyFilterElement = document.querySelector("#difficulty-filter");
-const puzzleSelectElement = document.querySelector("#puzzle-select");
+const puzzleDialogElement = document.querySelector("#puzzle-dialog");
+const dialogDifficultyElement = document.querySelector("#dialog-difficulty");
+const dialogListElement = document.querySelector("#dialog-list");
+const dialogCloseButton = document.querySelector("#dialog-close");
+const exitButton = document.querySelector("#exit");
 const numberPadElement = document.querySelector("#number-pad");
 const modeElement = document.querySelector("#input-mode");
 const titleElement = document.querySelector("#puzzle-title");
@@ -17,6 +20,7 @@ const resetButton = document.querySelector("#reset");
 
 let game;
 let puzzleIndex;
+let dialogDifficulty = "all";
 let inputMode = "value";
 let selectedIndexes = new Set([0]);
 let primaryIndex = 0;
@@ -29,10 +33,7 @@ bootstrap();
 async function bootstrap() {
   puzzleIndex = await loadIndex();
 
-  renderDifficultyFilter();
-  renderPuzzleSelect();
-
-  const puzzle = await loadPuzzle(entryUrl(currentEntries()[0]));
+  const puzzle = await loadPuzzle(entryUrl(puzzleIndex.puzzles[0]));
   startPuzzle(puzzle);
   bindEvents();
 }
@@ -56,54 +57,69 @@ function entryUrl(entry) {
   return `./puzzles/${entry.file}`;
 }
 
-// 当前难度筛选下的题目列表；筛选结果为空时退回全部
-function currentEntries() {
-  const filter = difficultyFilterElement.value;
-  const filtered =
-    filter === "all"
-      ? puzzleIndex.puzzles
-      : puzzleIndex.puzzles.filter((entry) => entry.difficulty === filter);
-  return filtered.length > 0 ? filtered : puzzleIndex.puzzles;
+function filteredEntries() {
+  if (dialogDifficulty === "all") {
+    return puzzleIndex.puzzles;
+  }
+  return puzzleIndex.puzzles.filter((entry) => entry.difficulty === dialogDifficulty);
 }
 
-function renderDifficultyFilter() {
-  difficultyFilterElement.innerHTML = "";
-
-  const all = document.createElement("option");
-  all.value = "all";
-  all.textContent = "All difficulties";
-  difficultyFilterElement.append(all);
-
-  for (const difficulty of DIFFICULTIES) {
-    const option = document.createElement("option");
-    option.value = difficulty;
-    option.textContent = difficulty;
-    difficultyFilterElement.append(option);
-  }
+function openPuzzleDialog() {
+  renderPuzzleDialog();
+  puzzleDialogElement.showModal();
 }
 
-function renderPuzzleSelect(preferredId) {
-  puzzleSelectElement.innerHTML = "";
+function renderPuzzleDialog() {
+  dialogDifficultyElement.innerHTML = "";
 
-  for (const entry of currentEntries()) {
-    const option = document.createElement("option");
-    option.value = entry.id;
-    option.textContent = entry.difficulty ? `${entry.title} (${entry.difficulty})` : entry.title;
-    puzzleSelectElement.append(option);
+  for (const difficulty of ["all", ...DIFFICULTIES]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = difficulty === "all" ? "All" : difficulty;
+    button.classList.toggle("active", difficulty === dialogDifficulty);
+    button.addEventListener("click", () => {
+      dialogDifficulty = difficulty;
+      renderPuzzleDialog();
+    });
+    dialogDifficultyElement.append(button);
   }
 
-  if (preferredId && currentEntries().some((entry) => entry.id === preferredId)) {
-    puzzleSelectElement.value = preferredId;
-  }
-}
+  dialogListElement.innerHTML = "";
+  const entries = filteredEntries();
 
-async function switchToSelectedPuzzle() {
-  const entry = currentEntries().find((e) => e.id === puzzleSelectElement.value);
-  if (!entry || entry.id === game?.puzzle.id) {
+  if (entries.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "dialog-empty";
+    empty.textContent = "No puzzles at this difficulty yet.";
+    dialogListElement.append(empty);
     return;
   }
-  const puzzle = await loadPuzzle(entryUrl(entry));
-  startPuzzle(puzzle);
+
+  for (const entry of entries) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "puzzle-option";
+    button.classList.toggle("current", entry.id === game?.puzzle.id);
+
+    const title = document.createElement("span");
+    title.textContent = entry.title;
+    button.append(title);
+
+    if (entry.difficulty) {
+      const badge = document.createElement("span");
+      badge.className = `difficulty-badge difficulty-${entry.difficulty}`;
+      badge.textContent = entry.difficulty;
+      button.append(badge);
+    }
+
+    button.addEventListener("click", async () => {
+      puzzleDialogElement.close();
+      if (entry.id !== game?.puzzle.id) {
+        startPuzzle(await loadPuzzle(entryUrl(entry)));
+      }
+    });
+    dialogListElement.append(button);
+  }
 }
 
 function renderBoard() {
@@ -154,13 +170,13 @@ function renderNumberPad() {
 }
 
 function bindEvents() {
-  difficultyFilterElement.addEventListener("change", () => {
-    renderPuzzleSelect(game?.puzzle.id);
-    switchToSelectedPuzzle();
-  });
-
-  puzzleSelectElement.addEventListener("change", () => {
-    switchToSelectedPuzzle();
+  exitButton.addEventListener("click", openPuzzleDialog);
+  dialogCloseButton.addEventListener("click", () => puzzleDialogElement.close());
+  // 点击遮罩区域关闭
+  puzzleDialogElement.addEventListener("click", (event) => {
+    if (event.target === puzzleDialogElement) {
+      puzzleDialogElement.close();
+    }
   });
 
   // Cmd/Ctrl+点击：切换单元格的选中状态；普通单选在 pointerdown 中处理
@@ -349,7 +365,12 @@ function handleKeyboard(event) {
     return;
   }
 
-  // 下拉框等表单控件聚焦时不接管键盘
+  // 选题弹窗打开时不接管键盘（Esc 关闭由 dialog 原生处理）
+  if (puzzleDialogElement.open) {
+    return;
+  }
+
+  // 表单控件聚焦时不接管键盘
   if (event.target.matches("select, input, textarea")) {
     return;
   }

@@ -27,11 +27,6 @@
       </section>
 
       <aside class="controls" aria-label="Game controls">
-        <div class="puzzle-picker" aria-label="Puzzle selection">
-          <select id="difficulty-filter" aria-label="Filter by difficulty"></select>
-          <select id="puzzle-select" aria-label="Choose a puzzle"></select>
-        </div>
-
         <div id="input-mode" class="mode-switch" aria-label="Input mode">
           <button type="button" data-mode="value" class="active" aria-pressed="true">
             <span>Answer</span>
@@ -52,9 +47,19 @@
         <div class="actions">
           <button id="check" type="button">Check Answer</button>
           <button id="reset" type="button">Reset</button>
+          <button id="exit" type="button">Exit</button>
         </div>
       </aside>
     </main>
+
+    <dialog id="puzzle-dialog" aria-label="Choose a puzzle">
+      <header class="dialog-header">
+        <h2>Choose a Puzzle</h2>
+        <button id="dialog-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div id="dialog-difficulty" class="dialog-difficulty" aria-label="Filter by difficulty"></div>
+      <div id="dialog-list" class="dialog-list" aria-label="Puzzles"></div>
+    </dialog>
 
     <script type="module" src="./src/ui.js"></script>
   </body>

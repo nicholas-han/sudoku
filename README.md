@@ -4,7 +4,7 @@ A lightweight browser Sudoku game prototype. Plain HTML/CSS/JS modules — no fr
 
 ## Features
 
-- Puzzle bank: pick a puzzle from the dropdown, optionally filtered by difficulty.
+- Puzzle bank: the Exit button opens a puzzle chooser, filterable by difficulty.
 - Answer mode: enter final digits.
 - Corner Marks: track 1-9 candidates around the edge of a cell.
 - Center Marks: track up to 4 digits in the middle of a cell; repeat a digit to remove it.
