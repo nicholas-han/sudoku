@@ -70,3 +70,6 @@ Testing/
 
 # local tool config
 .claude/
+
+# puzzle photos awaiting import (only source.image basenames are stored)
+photos/
