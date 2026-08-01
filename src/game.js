@@ -382,4 +382,75 @@ export class SudokuGame {
 
     return true;
   }
+
+  toJSON() {
+    return {
+      values: [...this.values],
+      edgeNotes: this.edgeNotes.map((set) => [...set]),
+      centerNotes: this.centerNotes.map((arr) => [...arr]),
+      numberCounts: { ...this.numberCounts },
+      history: this.history.map((entry) => this.serializeHistoryEntry(entry)),
+    };
+  }
+
+  serializeHistoryEntry(entry) {
+    const serialized = { ...entry };
+
+    if (entry.oldEdgeNotes instanceof Set) {
+      serialized.oldEdgeNotes = [...entry.oldEdgeNotes];
+    }
+
+    if (entry.oldNotes !== undefined) {
+      serialized.oldNotes = [...entry.oldNotes];
+    }
+
+    if (entry.peerNotes) {
+      serialized.peerNotes = entry.peerNotes.map((p) => ({
+        index: p.index,
+        edgeNotes: [...p.edgeNotes],
+        centerNotes: [...p.centerNotes],
+      }));
+    }
+
+    return serialized;
+  }
+
+  static fromJSON(puzzle, json) {
+    const game = new SudokuGame(puzzle);
+
+    game.values = json.values;
+    game.edgeNotes = json.edgeNotes.map((arr) => new Set(arr));
+    game.centerNotes = json.centerNotes.map((arr) => [...arr]);
+    game.numberCounts = json.numberCounts;
+    game.history = json.history.map((entry) =>
+      SudokuGame.deserializeHistoryEntry(entry),
+    );
+
+    return game;
+  }
+
+  static deserializeHistoryEntry(entry) {
+    const restored = { ...entry };
+
+    if (Array.isArray(entry.oldEdgeNotes)) {
+      restored.oldEdgeNotes = new Set(entry.oldEdgeNotes);
+    }
+
+    if (entry.oldNotes !== undefined) {
+      restored.oldNotes =
+        entry.type === "edge"
+          ? new Set(entry.oldNotes)
+          : [...entry.oldNotes];
+    }
+
+    if (entry.peerNotes) {
+      restored.peerNotes = entry.peerNotes.map((p) => ({
+        index: p.index,
+        edgeNotes: new Set(p.edgeNotes),
+        centerNotes: [...p.centerNotes],
+      }));
+    }
+
+    return restored;
+  }
 }
