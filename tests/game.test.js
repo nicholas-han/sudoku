@@ -333,3 +333,159 @@ describe("undo", () => {
     assert.equal(game.undo(), false);
   });
 });
+
+describe("serialization", () => {
+  it("toJSON produces valid shape", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    game.toggleEdgeNote(5, "1");
+    game.toggleCenterNote(7, "3");
+
+    const json = game.toJSON();
+    assert.equal(json.values.length, 81);
+    assert.equal(json.edgeNotes.length, 81);
+    assert.equal(json.centerNotes.length, 81);
+    assert.ok(Array.isArray(json.edgeNotes[5]));
+    assert.ok(Array.isArray(json.centerNotes[7]));
+    assert.equal(typeof json.numberCounts["4"], "number");
+    assert.ok(Array.isArray(json.history));
+    assert.ok(json.history.length >= 3);
+  });
+
+  it("fromJSON restores values, notes, and counts", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    game.setCell(3, "6");
+    game.toggleEdgeNote(5, "1");
+    game.toggleEdgeNote(5, "9");
+    game.toggleCenterNote(7, "2");
+    game.toggleCenterNote(7, "3");
+
+    const json = game.toJSON();
+    const restored = SudokuGame.fromJSON(game.puzzle, json);
+
+    assert.equal(restored.getCell(2).value, "4");
+    assert.equal(restored.getCell(3).value, "6");
+    assert.deepEqual(restored.getCell(5).edgeNotes, ["1", "9"]);
+    assert.deepEqual(restored.getCell(7).centerNotes, ["2", "3"]);
+    assert.equal(restored.numberCounts["4"], game.numberCounts["4"]);
+    assert.equal(restored.numberCounts["6"], game.numberCounts["6"]);
+    assert.equal(restored.history.length, game.history.length);
+  });
+
+  it("round-trip preserves full game state", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    game.setCell(3, "6");
+    game.toggleEdgeNote(5, "1");
+    game.toggleCenterNote(7, "2");
+    game.setCell(10, "9");
+    // 导致 clearConflictingNotes 清除 peer 笔记
+    game.toggleEdgeNote(11, "9");
+    game.setCell(10, "");
+
+    const json = game.toJSON();
+    const restored = SudokuGame.fromJSON(game.puzzle, json);
+
+    // 逐格对比 values 与 notes
+    for (let index = 0; index < 81; index += 1) {
+      assert.equal(
+        restored.getCell(index).value,
+        game.getCell(index).value,
+        `value at ${index}`,
+      );
+      assert.deepEqual(
+        restored.getCell(index).edgeNotes,
+        game.getCell(index).edgeNotes,
+        `edgeNotes at ${index}`,
+      );
+      assert.deepEqual(
+        restored.getCell(index).centerNotes,
+        game.getCell(index).centerNotes,
+        `centerNotes at ${index}`,
+      );
+    }
+
+    assert.deepEqual(restored.numberCounts, game.numberCounts);
+    assert.equal(restored.history.length, game.history.length);
+  });
+
+  it("restored game has working undo", () => {
+    const game = newGame();
+    game.setCell(2, "4");
+    game.toggleEdgeNote(5, "1");
+
+    const restored = SudokuGame.fromJSON(game.puzzle, game.toJSON());
+
+    assert.equal(restored.undo(), true); // 撤销 edge note
+    assert.deepEqual(restored.getCell(5).edgeNotes, []);
+
+    assert.equal(restored.undo(), true); // 撤销 cell set
+    assert.equal(restored.getCell(2).value, "");
+
+    assert.equal(restored.undo(), false);
+  });
+
+  it("restored edge-note undo restores old notes correctly", () => {
+    const game = newGame();
+    game.toggleEdgeNote(2, "1");
+    game.toggleEdgeNote(2, "5"); // now notes are [1, 5]
+    game.toggleEdgeNote(2, "1"); // remove 1, leaving [5]
+
+    const restored = SudokuGame.fromJSON(game.puzzle, game.toJSON());
+    assert.deepEqual(restored.getCell(2).edgeNotes, ["5"]);
+
+    restored.undo(); // should bring back 1
+    assert.deepEqual(restored.getCell(2).edgeNotes, ["1", "5"]);
+  });
+
+  it("restored center-note undo works", () => {
+    const game = newGame();
+    game.toggleCenterNote(3, "3");
+    game.toggleCenterNote(3, "7");
+
+    const restored = SudokuGame.fromJSON(game.puzzle, game.toJSON());
+    assert.deepEqual(restored.getCell(3).centerNotes, ["3", "7"]);
+
+    restored.undo();
+    assert.deepEqual(restored.getCell(3).centerNotes, ["3"]);
+  });
+
+  it("restored game preserves peer notes for undo", () => {
+    const game = newGame();
+    game.toggleEdgeNote(10, "4");
+    game.toggleCenterNote(11, "4");
+    game.setCell(2, "4"); // clearConflictingNotes 清掉 10/11 的 "4"
+
+    const restored = SudokuGame.fromJSON(game.puzzle, game.toJSON());
+    assert.equal(restored.getCell(2).value, "4");
+    assert.deepEqual(restored.getCell(10).edgeNotes, []);
+    assert.deepEqual(restored.getCell(11).centerNotes, []);
+
+    restored.undo();
+    assert.equal(restored.getCell(2).value, "");
+    assert.deepEqual(restored.getCell(10).edgeNotes, ["4"]);
+    assert.deepEqual(restored.getCell(11).centerNotes, ["4"]);
+  });
+
+  it("restored game correctly identifies givens", () => {
+    const game = newGame();
+    game.setCell(2, "9");
+
+    const restored = SudokuGame.fromJSON(game.puzzle, game.toJSON());
+    assert.equal(restored.getCell(0).given, true);
+    assert.equal(restored.getCell(2).given, false);
+    // given cells are still immutable
+    assert.equal(restored.setCell(0, "9"), false);
+    assert.equal(restored.getCell(0).value, game.getCell(0).value);
+  });
+
+  it("fromJSON with an empty game (no history)", () => {
+    const game = newGame();
+    const restored = SudokuGame.fromJSON(game.puzzle, game.toJSON());
+
+    assert.equal(restored.history.length, 0);
+    assert.equal(restored.getProgress().filled, 30);
+    assert.equal(restored.undo(), false);
+  });
+});

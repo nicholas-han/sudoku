@@ -28,6 +28,12 @@ let isDraggingSelection = false;
 let activePointerId = null;
 let dragStartIndex = null;
 
+const STORAGE_PREFIX = "sudoku:progress:";
+
+function storageKey(puzzleId) {
+  return `${STORAGE_PREFIX}${puzzleId}`;
+}
+
 bootstrap();
 
 async function bootstrap() {
@@ -50,7 +56,9 @@ function startPuzzle(puzzle) {
   renderBoard();
   // 数字键盘的 used-up 灰显在渲染时烘焙，切题必须整体重渲染
   renderNumberPad();
-  updateView("Select a cell, then enter a digit.");
+
+  const restored = restoreProgress(puzzle.id);
+  updateView(restored ? "Previous progress restored." : "Select a cell, then enter a digit.");
 }
 
 function entryUrl(entry) {
@@ -294,6 +302,7 @@ function bindEvents() {
       game.reset();
       selectedIndexes = new Set([0]);
       primaryIndex = 0;
+      clearSavedProgress(game.puzzle.id);
       updateView("Puzzle reset.");
     }
   });
@@ -473,6 +482,13 @@ function updateView(message = "") {
       button.classList.toggle("used-up", game.numberCounts[String(value)] >= 9);
     }
   }
+
+  // 谜题完成则清除存档，否则自动保存进度
+  if (progress.complete && progress.wrong === 0) {
+    clearSavedProgress(game.puzzle.id);
+  } else {
+    saveProgress(game.puzzle.id);
+  }
 }
 
 function renderCellContent(cell) {
@@ -552,6 +568,60 @@ function finishSelectionDrag(event) {
 
 function getSelectedIndexes() {
   return Array.from(selectedIndexes);
+}
+
+function saveProgress(puzzleId) {
+  try {
+    const data = {
+      version: 1,
+      puzzleId,
+      savedAt: new Date().toISOString(),
+      game: game.toJSON(),
+      ui: {
+        inputMode,
+        selectedIndexes: [...selectedIndexes],
+        primaryIndex,
+      },
+    };
+    localStorage.setItem(storageKey(puzzleId), JSON.stringify(data));
+  } catch {
+    // localStorage 不可用或已满时静默跳过
+  }
+}
+
+function restoreProgress(puzzleId) {
+  try {
+    const raw = localStorage.getItem(storageKey(puzzleId));
+    if (!raw) {
+      return false;
+    }
+
+    const data = JSON.parse(raw);
+    if (!data || data.version !== 1 || !data.game || !data.ui) {
+      return false;
+    }
+
+    game = SudokuGame.fromJSON(game.puzzle, data.game);
+
+    inputMode = data.ui.inputMode ?? "value";
+    primaryIndex = data.ui.primaryIndex ?? 0;
+    selectedIndexes = new Set(
+      Array.isArray(data.ui.selectedIndexes) ? data.ui.selectedIndexes : [primaryIndex],
+    );
+
+    return true;
+  } catch {
+    // 存档损坏时静默跳过，用默认状态
+    return false;
+  }
+}
+
+function clearSavedProgress(puzzleId) {
+  try {
+    localStorage.removeItem(storageKey(puzzleId));
+  } catch {
+    // 静默跳过
+  }
 }
 
 function undo() {
