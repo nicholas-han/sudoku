@@ -1319,7 +1319,9 @@ window.__ModuleLoader__.load({
               { className: "sudoku-pad" },
               Array.from({ length: 9 }, (_, position) => {
                 const digit = String(position + 1);
-                const used = (state.numberCounts[digit] || 0) >= 9;
+                // 九次上限只约束落子；角标/中注仍可编辑已用完的数字。
+                const used =
+                  mode === "value" && (state.numberCounts[digit] || 0) >= 9;
 
                 return h(
                   "button",
