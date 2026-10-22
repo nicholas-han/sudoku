@@ -1,10 +1,50 @@
 {
-  "name": "sudoku",
-  "version": "0.1.0",
+  "name": "@local/dsh-plugin-sudoku",
+  "version": "1.0.0",
   "private": true,
+  "description": "Sudoku panel for DeepSeek Harness: play in the Web UI and share the same board with the agent.",
   "type": "module",
+  "main": "./index.js",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "lib/*.js",
+    "src/*.js",
+    "puzzles/*.json",
+    "locale/*.json",
+    "tools/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
   "scripts": {
-    "serve": "node tools/serve.js",
     "test": "node --test"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
   }
 }

@@ -17,22 +17,7 @@ export const fallbackPuzzle = {
   tags: ["beginner", "starter"],
 };
 
-export async function loadPuzzle(url = "./puzzles/classic-001.json") {
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`Cannot load puzzle: ${response.status}`);
-    }
-
-    return normalizePuzzle(await response.json());
-  } catch (error) {
-    console.warn("Using embedded puzzle fallback.", error);
-    return normalizePuzzle(fallbackPuzzle);
-  }
-}
-
-// 兜底索引：索引加载失败时游戏仍可玩内置题
+// 兜底索引：题库索引不可用时仍可玩内置题
 export const fallbackIndex = {
   format: SUPPORTED_INDEX_FORMAT,
   updatedAt: null,
@@ -46,21 +31,6 @@ export const fallbackIndex = {
     },
   ],
 };
-
-export async function loadIndex(url = "./puzzles/index.json") {
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`Cannot load index: ${response.status}`);
-    }
-
-    return normalizeIndex(await response.json());
-  } catch (error) {
-    console.warn("Using embedded index fallback.", error);
-    return fallbackIndex;
-  }
-}
 
 export function normalizeIndex(rawIndex) {
   if (!rawIndex || typeof rawIndex !== "object") {

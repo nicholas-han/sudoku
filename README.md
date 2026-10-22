@@ -1,55 +1,90 @@
-# sudoku
+# Sudoku for DeepSeek Harness
 
-A lightweight browser Sudoku game prototype. Plain HTML/CSS/JS modules — no framework, no build step, no dependencies.
+A Sudoku game that runs as a DeepSeek Harness plugin. The board opens as its own
+panel in the Harness Web UI, and the agent shares the same game: it can read the
+position, place or erase digits, add marks, undo, check, hint, or solve.
+
+There is no standalone web app and no build step. The package is plain ESM plus
+one browser module, and the puzzle bank stays human-readable JSON.
 
 ## Features
 
-- Puzzle bank: the Exit button opens a puzzle chooser, filterable by difficulty.
-- Answer mode: enter final digits.
-- Corner Marks: track 1-9 candidates around the edge of a cell.
-- Center Marks: track up to 4 digits in the middle of a cell; repeat a digit to remove it.
-- Multi-select: drag with the left mouse button to select a rectangle of cells, or Cmd/Ctrl+click to toggle individual cells in and out of the selection. Digits and marks apply to every selected cell; given clues are skipped.
-- Undo: reverts values, marks, and any peer marks that were auto-removed when a digit was placed.
-- Red conflict hints only show entries that directly clash with given clues.
-- Once all nine copies of a digit are on the board, that digit is grayed out on the number pad and cannot be entered again; erasing one frees it up.
-- Final answer checking happens only after the grid is full.
+- **Panel in the Harness UI.** A Sudoku icon appears in the sidebar panel list;
+  clicking it opens the board without starting a separate server or window.
+- **Puzzle bank.** Choose a puzzle from the bank and filter by difficulty.
+- **Answer, Corner, and Center modes.** Enter final digits, corner marks, or up
+  to four center marks per cell.
+- **Multi-select.** Drag a rectangle, or Cmd/Ctrl-click to toggle cells. Digits
+  and marks apply to every selected cell; given clues are skipped.
+- **Queued input.** Actions typed while a move is still in flight run in order
+  instead of being dropped.
+- **Undo.** Reverts values, marks, and peer marks that were automatically
+  removed when a digit was placed.
+- **Conflict hints.** Entries that clash with a given clue are highlighted.
+  Wrong-cell highlighting appears only after the grid is full.
+- **Progress persistence.** The active puzzle and full undo history are stored
+  in `$DSH_HOME/sudoku/progress.json`, so the game survives a Harness restart.
+- **Agent tools.** `sudoku` reads and plays the live board; `sudoku_solve`
+  solves or grades any 81-character grid.
+- **Bilingual UI.** English and Chinese dictionaries ship with the plugin and
+  follow the Harness locale.
+
+## Install
+
+The package is itself a DSH bundle: `package.json` declares `dsh.bundle.patch`
+and `dsh.client`, and `cordis.patch.yml` inserts the `sudoku` row. Install this
+checkout as a local bundle in the current profile and enable it. The host half
+registers the `/sudoku` route, the tools, and the runtime; the client half
+registers the sidebar entry and the `main` panel.
+
+The plugin needs the Web profile services `webServer`, `connection`, and
+`tools`. No configuration is required.
 
 ## Keyboard
 
 | Key | Action |
 | --- | --- |
-| `1`-`9` | Enter digit / toggle mark (per current mode) |
-| `Backspace` / `Delete` / `0` | Erase selected cells |
-| `A` / `S` / `D` | Switch to Answer / Corner / Center mode |
+| `1`-`9` | Enter a digit or toggle a mark, depending on the mode |
+| `Backspace` / `Delete` / `0` | Erase the selected cells |
+| `A` / `S` / `D` | Answer / Corner / Center mode |
 | `Z` | Undo |
-| Arrow keys | Move the selection (stops at board edges) |
+| Arrow keys | Move the selection |
 
-Shortcuts never intercept system combos (Cmd/Ctrl/Alt + key passes through).
+Shortcuts never intercept Cmd/Ctrl/Alt combinations, and they are ignored while
+an input, textarea, or contenteditable element has focus.
 
-## Run
+## Agent tools
 
-```bash
-npm run serve
-```
+### `sudoku`
 
-Then open `http://localhost:8000`.
+Operates on the panel's live game. Actions:
 
-## Project Layout
+| Action | Meaning |
+| --- | --- |
+| `state` | Read the board, notes, conflicts, and progress |
+| `list` | List puzzle ids and difficulties |
+| `new` | Load a puzzle by `puzzleId` |
+| `set` / `erase` | Place or clear a digit at `row`, `col` (1-9) |
+| `note` | Toggle an `edge` or `center` mark |
+| `undo` / `reset` / `check` | Same as the panel buttons |
+| `hint` | Place the next logic hint (or point out a wrong cell) |
+| `solve` | Fill the whole board from the stored solution |
 
-- `src/game.js` — game state and rules: values, marks, conflicts, digit counts, undo history. No DOM access.
-- `src/backtracker.js` — exhaustive backtracking search; `solve()` and `countSolutions()` for uniqueness validation. Always finds the answer, no logic techniques involved.
-- `src/grader.js` — modular difficulty grader: a rule-based, human-style solver; add techniques to the `TECHNIQUES` registry to refine grades.
-- `src/canonical.js` — isomorphism canonical form (8 symmetries × digit relabeling) used for dedup.
-- `src/selection.js` — pure helper for rectangular multi-select ranges.
-- `src/storage.js` — puzzle/index loading, format validation, embedded fallbacks.
-- `src/ui.js` — DOM rendering and input handling (mouse, keyboard, drag selection, puzzle picker).
-- `tools/add-puzzle.js` — puzzle import CLI (see below).
-- `tools/serve.js` — zero-dependency dev server with no-store cache headers.
-- `tests/` — unit tests for everything above except `ui.js`.
+### `sudoku_solve`
 
-## Importing Puzzles
+Takes an 81-character grid (`0` or `.` for empty) and returns the solution,
+whether it is unique, and the logic-grade difficulty. It does not touch the
+live game. Grid analysis runs in a worker thread with an 8-second budget; a
+pathological grid returns a timeout result instead of blocking the Harness
+event loop.
 
-`tools/add-puzzle.js` adds puzzles to the bank from a photo (OCR) or by hand:
+## Puzzle bank
+
+`puzzles/index.json` lists the bank; each puzzle file is a complete `sudoku-v1`
+record. The plugin loads the bank at activation, so restart the plugin after
+adding puzzles.
+
+`tools/add-puzzle.js` still maintains the bank from a photo (OCR) or by hand:
 
 ```bash
 # OCR a photo with a local model via Ollama (default; no key, no cloud)
@@ -58,94 +93,68 @@ node tools/add-puzzle.js photos/IMG_1234.jpg
 # other providers (need the matching env var)
 node tools/add-puzzle.js p.jpg --provider anthropic   # ANTHROPIC_API_KEY
 node tools/add-puzzle.js p.jpg --provider glm         # GLM_API_KEY
-# --provider deepseek exists but errors until their API accepts images
 
 # manual entry without a photo
 node tools/add-puzzle.js --grid 530070000...  --source "Sudoku Book vol.2 p.34"
 
-# optionally enter the printed answer as a cross-check (works with photos too)
+# optionally enter the printed answer as a cross-check
 node tools/add-puzzle.js --grid 530070000... --solution 534678912...
 
 # regenerate puzzles/index.json from the puzzle files
 node tools/add-puzzle.js --rebuild
 ```
 
-The pipeline shows the recognized grid for confirmation (with per-cell
-edits like `r3c5=7`), rejects grids without a unique solution, dedups
-against the bank up to rotation/mirroring/digit relabeling, auto-grades
-difficulty (`--difficulty` overrides), and writes the puzzle JSON plus
-an index entry. The stored `solution` always comes from the solver;
-`--solution` lets you enter the printed answer as a cross-check — any
-disagreement with the givens or the solver aborts the import, catching
-transcription errors on either side. For local OCR, install [Ollama](https://ollama.com) and
-pull a small vision model such as `qwen3-vl` or `minicpm-v`.
+The pipeline validates the grid, requires a unique solution, deduplicates up to
+rotation/mirroring/digit relabeling, grades the difficulty, and writes the
+puzzle JSON plus its index entry. For local OCR, install
+[Ollama](https://ollama.com) and pull a small vision model such as `qwen3-vl` or
+`minicpm-v`. Keep photos out of the repo (`photos/` is gitignored).
 
-OCR caveat: vision models love to *solve* the puzzle instead of
-transcribing it. The prompt forbids it and the tool warns when a grid
-has suspiciously many givens — compare against the photo before
-accepting. Keep photos out of the repo (`photos/` is gitignored); only
-the file name is recorded in the puzzle's `source` field.
+## Project layout
+
+- `index.js` — Host plugin: `/sudoku` HTTP route, lifecycle, tool registration.
+- `client.js` — Browser half: sidebar entry, panel, keyboard, selection, CSS.
+- `lib/runtime.js` — Authoritative game state and every action; both the panel
+  and the tools call it.
+- `lib/bank.js` — Loads and validates the puzzle bank from `puzzles/`.
+- `lib/store.js` — Progress file under `$DSH_HOME/sudoku/`.
+- `lib/tools.js` — `sudoku` and `sudoku_solve` tool definitions.
+- `lib/solver-worker.js` — Isolated worker for arbitrary-grid solving.
+- `src/game.js` — Game rules: values, marks, conflicts, digit counts, undo.
+- `src/backtracker.js` — Backtracking solver and solution counter.
+- `src/grader.js` — Rule-based difficulty grader and technique registry.
+- `src/canonical.js` — Isomorphism canonical form used for deduplication.
+- `src/storage.js` — Puzzle/index normalization and validation.
+- `puzzles/` — The puzzle bank and its manifest.
+- `tools/add-puzzle.js` — Puzzle import CLI.
+- `tests/` — Node.js unit tests.
 
 ## Test
-
-Tests run on the built-in Node.js test runner (Node 18+, no dependencies):
 
 ```bash
 npm test
 ```
 
-## Future Work
+The suite covers the engine, the import pipeline, and the host runtime (moves,
+marks, undo, hints, checks, puzzle switching, and persistence). The browser
+panel itself is verified in the running Harness.
 
-1. **Backend puzzle storage.** Design a proper backend for the puzzle
-   bank instead of committed JSON files — storage schema, an API the
-   game reads from, and how imports write to it.
-2. **Web entry point for photo import.** An upload page (drag & drop)
-   so puzzles can be added from the browser instead of the CLI. Needs
-   a small server endpoint that reuses the existing import pipeline
-   (validation, dedup, grading) and an on-screen grid for correcting
-   the recognized digits.
-3. **Image recognition for import**, evaluating three approaches:
-   1. a small purpose-built CNN (grid detection + per-cell digit classifier);
-   2. off-the-shelf OCR tooling;
-   3. a small local vision model (the current default via Ollama).
-   The provider abstraction in `tools/lib/ocr.js` is the plug-in point.
-4. **Auto-solving with a custom rule set.** Solving rules will be
-   user-defined and accumulated incrementally over time. How rules are
-   invoked (iteration strategy, ordering, when to loop back after
-   progress) is part of the design, not fixed yet. The `TECHNIQUES`
-   registry in `src/grader.js` is the starting seed for this work.
+## Puzzle format
 
-## Puzzle Format
-
-Puzzles are stored as JSON. The current format version is `sudoku-v1`.
-See `puzzles/classic-001.json` for an example.
+Puzzles are stored as JSON. The current format version is `sudoku-v1`; see
+`puzzles/classic-001.json` for an example.
 
 Core fields:
 
 - `puzzle`: 81 characters; `0` means empty.
 - `solution`: 81 characters; the completed answer.
-- `type`: currently supports `classic-9x9`.
+- `type`: currently `classic-9x9`.
 - `difficulty`: `easy | medium | hard | expert` (auto-graded on import).
 - `rules`: rule list for future variants.
-- `source` (optional): provenance — `kind` (`photo`/`manual`), OCR `provider`/`model`, photo `image` basename, free-form `note`.
+- `source` (optional): provenance.
 - `createdAt` (optional): import timestamp.
 
-`puzzles/index.json` (`sudoku-index-v1`) is the bank manifest the game
-loads for the puzzle picker. Each entry carries `id`, `file`, `title`,
-`difficulty`, and the puzzle's `canonical` key used for duplicate
-detection. It is maintained by the import tool; rebuild it any time
-with `--rebuild`.
-
-```json
-{
-  "format": "sudoku-v1",
-  "id": "classic-001",
-  "title": "Starter Puzzle 001",
-  "type": "classic-9x9",
-  "difficulty": "easy",
-  "puzzle": "530070000600195000098000060800060003400803001700020006060000280000419005000080079",
-  "solution": "534678912672195348198342567859761423426853791713924856961537284287419635345286179",
-  "rules": ["classic"],
-  "tags": ["beginner"]
-}
-```
+`puzzles/index.json` (`sudoku-index-v1`) is the manifest. Each entry carries
+`id`, `file`, `title`, `difficulty`, and the puzzle's `canonical` key used for
+duplicate detection. It is maintained by the import tool and can be rebuilt any
+time with `--rebuild`.
