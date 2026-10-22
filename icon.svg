@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Sudoku">
+  <rect width="64" height="64" rx="14" fill="#1f6feb"/>
+  <g stroke="#ffffff" stroke-width="2.4" opacity="0.9">
+    <path d="M22 10v44M42 10v44M10 22h44M10 42h44"/>
+  </g>
+  <g fill="#ffffff">
+    <rect x="11.5" y="11.5" width="8" height="8" rx="1.6"/>
+    <rect x="44.5" y="11.5" width="8" height="8" rx="1.6" opacity="0.55"/>
+    <rect x="33" y="33" width="8" height="8" rx="1.6"/>
+    <rect x="11.5" y="44.5" width="8" height="8" rx="1.6" opacity="0.55"/>
+    <rect x="44.5" y="44.5" width="8" height="8" rx="1.6"/>
+  </g>
+</svg>

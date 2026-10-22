@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Sudoku",
+    "description": "Play Sudoku in a Harness panel. The agent shares the same board, so it can read the position, place digits, and give hints."
+  }
+}
