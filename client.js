@@ -1391,22 +1391,10 @@ window.__ModuleLoader__.load({
         "sudoku: panel",
       );
 
-      ctx.effect(
-        () =>
-          ctx.slots.inject("sidebar.panellist", () =>
-            ctx.slots.register(
-              {
-                name: "sidebar.panellist",
-                id: PANEL_ID,
-                order: 13,
-                label: () => t("panel"),
-                locale: NS,
-              },
-              SudokuIcon,
-            ),
-          ),
-        "sudoku: sidebar entry",
-      );
+      // No dedicated sidebar icon: @local/dsh-plugin-games owns the single
+      // "Games" entry and opens this panel by id. To split Sudoku back out,
+      // restore a sidebar.panellist registration with id PANEL_ID, order 13,
+      // label () => t("panel") and this file's SudokuIcon.
     }
 
     return { inject: ["slots", "locale"], apply, SudokuPanel, SudokuIcon };
